@@ -2,14 +2,21 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>경사하강법 v0.1</title>
+  <title>경사하강법 v0.2</title>
 </head>
 <body>
   <canvas id="plot" width="600" height="400" style="border:1px solid #ccc"></canvas>
   <div>
+    <button id="play">재생</button>
     <button id="step">한 스텝</button>
+    <button id="reset">처음으로</button>
+  </div>
+  <div>
+    <label>학습률 η: <input id="eta" type="range" min="0" max="1000" step="1"></label>
+    <span id="etaValue"></span>
   </div>
   <p>
+    상태: <span id="status"></span><br>
     반복 횟수: <span id="k"></span><br>
     θ = <span id="theta"></span><br>
     J(θ) = <span id="j"></span><br>
@@ -17,19 +24,41 @@
   </p>
 
   <script type="module">
-    import { J, derivative, step } from './src/gd.js';
+    import { J, derivative, step, stopReason } from './src/gd.js';
 
-    const ETA = 0.1;
+    const ETA0 = 0.1;
     const THETA0 = -2.5;
+    const INTERVAL_MS = 300;
     const X_MIN = -3, X_MAX = 3, Y_MIN = 0, Y_MAX = 9;
+
+    // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환
+    const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
+    const posToEta = (pos) => 10 ** (LOG_MIN + (pos / 1000) * (LOG_MAX - LOG_MIN));
+    const etaToPos = (eta) => Math.round(((Math.log10(eta) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 1000);
+
+    const STATUS_TEXT = {
+      idle: '대기',
+      playing: '재생 중',
+      paused: '일시정지',
+      converged: '수렴',
+      diverged: '발산',
+      maxIter: '최대 반복 도달',
+    };
 
     const canvas = document.getElementById('plot');
     const ctx = canvas.getContext('2d');
     const toX = (x) => ((x - X_MIN) / (X_MAX - X_MIN)) * canvas.width;
     const toY = (y) => canvas.height - ((y - Y_MIN) / (Y_MAX - Y_MIN)) * canvas.height;
 
+    const playBtn = document.getElementById('play');
+    const stepBtn = document.getElementById('step');
+    const etaInput = document.getElementById('eta');
+
     let theta = THETA0;
     let k = 0;
+    let eta = ETA0;
+    let timer = null;     // 재생 중이면 setInterval id
+    let reason = null;    // 멈춘 이유 (converged | diverged | maxIter)
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -44,24 +73,62 @@
       ctx.strokeStyle = '#333';
       ctx.stroke();
 
-      // 현재 점
+      // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음)
       ctx.beginPath();
       ctx.arc(toX(theta), toY(J(theta)), 6, 0, 2 * Math.PI);
       ctx.fillStyle = 'red';
       ctx.fill();
 
+      const status = reason ?? (timer ? 'playing' : k > 0 ? 'paused' : 'idle');
+      document.getElementById('status').textContent = STATUS_TEXT[status];
       document.getElementById('k').textContent = k;
       document.getElementById('theta').textContent = theta.toFixed(4);
       document.getElementById('j').textContent = J(theta).toFixed(4);
       document.getElementById('dj').textContent = derivative(J, theta).toFixed(4);
+      document.getElementById('etaValue').textContent = eta.toPrecision(3);
+
+      playBtn.textContent = timer ? '일시정지' : '재생';
+      playBtn.disabled = reason !== null;
+      stepBtn.disabled = reason !== null;
     }
 
-    document.getElementById('step').addEventListener('click', () => {
-      theta = step(J, theta, ETA);
+    function doStep() {
+      theta = step(J, theta, eta);
       k++;
+      reason = stopReason(J, theta, k);
+      if (reason) pause();
+      draw();
+    }
+
+    function play() {
+      timer = setInterval(doStep, INTERVAL_MS);
+      draw();
+    }
+
+    function pause() {
+      clearInterval(timer);
+      timer = null;
+      draw();
+    }
+
+    function reset() {
+      pause();
+      theta = THETA0;
+      k = 0;
+      reason = null;
+      draw();
+    }
+
+    playBtn.addEventListener('click', () => (timer ? pause() : play()));
+    stepBtn.addEventListener('click', doStep);
+    document.getElementById('reset').addEventListener('click', reset);
+    // 실행 중에 바꾸면 다음 스텝부터 새 η 적용
+    etaInput.addEventListener('input', () => {
+      eta = posToEta(Number(etaInput.value));
       draw();
     });
 
+    etaInput.value = etaToPos(ETA0);
     draw();
   </script>
 </body>

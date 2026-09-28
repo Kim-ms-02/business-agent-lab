@@ -88,3 +88,15 @@ export function classifyStop(theta, { minima, plateaus }, [a, b]) {
   if (plateaus.some((p) => theta >= p.from && theta <= p.to)) return 'plateau';
   return null;
 }
+
+// 세분화한 상태 판정: 'global' | 'local' | 'plateauMoving' | 'plateauStopped' | null
+// global: 전역 최솟값 도달, local: 지역 최솟값에 갇힘,
+// plateauMoving: 평지에서 느리게 이동 중 (아직 안 멈춤), plateauStopped: 평지에서 멈춤
+// reason: stopReason 결과 (null이면 진행 중). 발산이거나 해당 없으면 null
+export function judgeState(reason, theta, features, range) {
+  if (reason === 'diverged') return null;
+  const place = classifyStop(theta, features, range);
+  if (reason === null) return place === 'plateau' ? 'plateauMoving' : null;
+  if (place === 'plateau') return 'plateauStopped';
+  return place;
+}

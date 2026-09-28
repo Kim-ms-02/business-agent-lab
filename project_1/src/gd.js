@@ -28,16 +28,17 @@ export function stopReason(f, theta, k, { tol = TOL, limit = DIVERGE_LIMIT, maxI
 
 // 범위 [a, b]를 n칸으로 나눠 J′ 부호 변화로 최솟값, 기울기가 아주 작은 구간으로 평지를 찾는다.
 // 평지 기준: |J′| < flatRatio × (J 최대 − J 최소) / (b − a). 최솟값·극댓값이 들어 있는 구간은 평지가 아니다.
-// 범위 끝점은 최솟값으로 보지 않는다.
+// 범위 끝점은 최솟값으로 보지 않는다. 값이 정의되지 않는 점(NaN·무한대)은 건너뛴다.
 export function findFeatures(f, [a, b], { n = 2000, flatRatio = 0.02 } = {}) {
   const xs = Array.from({ length: n + 1 }, (_, i) => a + ((b - a) * i) / n);
   const gs = xs.map((x) => derivative(f, x));
   const ys = xs.map(f);
 
-  // 부호 변화: 0인 점은 건너뛰고 직전의 0이 아닌 부호와 비교
+  // 부호 변화: 0인 점은 건너뛰고 직전의 0이 아닌 부호와 비교. 정의되지 않는 점에서는 비교를 끊는다
   const crossings = []; // { lo, hi, kind: 'min' | 'max' }
   let last = -1;
   for (let i = 0; i <= n; i++) {
+    if (!Number.isFinite(gs[i])) { last = -1; continue; }
     if (gs[i] === 0) continue;
     if (last >= 0 && Math.sign(gs[i]) !== Math.sign(gs[last])) {
       crossings.push({ lo: last, hi: i, kind: gs[last] < 0 ? 'min' : 'max' });
@@ -62,12 +63,14 @@ export function findFeatures(f, [a, b], { n = 2000, flatRatio = 0.02 } = {}) {
     minima.reduce((best, m) => (m.J < best.J ? m : best)).global = true;
   }
 
-  const eps = (flatRatio * (Math.max(...ys) - Math.min(...ys))) / (b - a);
+  const finiteYs = ys.filter(Number.isFinite);
+  const eps = (flatRatio * (Math.max(...finiteYs) - Math.min(...finiteYs))) / (b - a);
+  const isFlat = (g) => Number.isFinite(g) && Math.abs(g) < eps;
   const plateaus = [];
   for (let i = 0; i <= n; ) {
-    if (Math.abs(gs[i]) >= eps) { i++; continue; }
+    if (!isFlat(gs[i])) { i++; continue; }
     let j = i;
-    while (j + 1 <= n && Math.abs(gs[j + 1]) < eps) j++;
+    while (j + 1 <= n && isFlat(gs[j + 1])) j++;
     // 구간 양옆 한 칸까지 포함해 부호 변화가 있으면 골짜기 바닥이나 꼭대기이므로 제외
     const lo = Math.max(i - 1, 0), hi = Math.min(j + 1, n);
     if (!crossings.some((c) => c.hi > lo && c.lo < hi)) {

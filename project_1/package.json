@@ -1,0 +1,8 @@
+{
+  "name": "gradient-descent-ball",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>경사하강법 v0.1</title>
+</head>
+<body>
+  <canvas id="plot" width="600" height="400" style="border:1px solid #ccc"></canvas>
+  <div>
+    <button id="step">한 스텝</button>
+  </div>
+  <p>
+    반복 횟수: <span id="k"></span><br>
+    θ = <span id="theta"></span><br>
+    J(θ) = <span id="j"></span><br>
+    J′(θ) = <span id="dj"></span>
+  </p>
+
+  <script type="module">
+    import { J, derivative, step } from './src/gd.js';
+
+    const ETA = 0.1;
+    const THETA0 = -2.5;
+    const X_MIN = -3, X_MAX = 3, Y_MIN = 0, Y_MAX = 9;
+
+    const canvas = document.getElementById('plot');
+    const ctx = canvas.getContext('2d');
+    const toX = (x) => ((x - X_MIN) / (X_MAX - X_MIN)) * canvas.width;
+    const toY = (y) => canvas.height - ((y - Y_MIN) / (Y_MAX - Y_MIN)) * canvas.height;
+
+    let theta = THETA0;
+    let k = 0;
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 곡선 J(θ) = θ²
+      ctx.beginPath();
+      for (let i = 0; i <= 300; i++) {
+        const x = X_MIN + (i / 300) * (X_MAX - X_MIN);
+        if (i === 0) ctx.moveTo(toX(x), toY(J(x)));
+        else ctx.lineTo(toX(x), toY(J(x)));
+      }
+      ctx.strokeStyle = '#333';
+      ctx.stroke();
+
+      // 현재 점
+      ctx.beginPath();
+      ctx.arc(toX(theta), toY(J(theta)), 6, 0, 2 * Math.PI);
+      ctx.fillStyle = 'red';
+      ctx.fill();
+
+      document.getElementById('k').textContent = k;
+      document.getElementById('theta').textContent = theta.toFixed(4);
+      document.getElementById('j').textContent = J(theta).toFixed(4);
+      document.getElementById('dj').textContent = derivative(J, theta).toFixed(4);
+    }
+
+    document.getElementById('step').addEventListener('click', () => {
+      theta = step(J, theta, ETA);
+      k++;
+      draw();
+    });
+
+    draw();
+  </script>
+</body>
+</html>

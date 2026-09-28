@@ -2,14 +2,18 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>경사하강법 v0.2</title>
+  <title>경사하강법 v0.3</title>
 </head>
 <body>
-  <canvas id="plot" width="600" height="400" style="border:1px solid #ccc"></canvas>
+  <div>
+    <label>곡선: <select id="curve"></select></label>
+  </div>
+  <canvas id="plot" width="600" height="400" style="border:1px solid #ccc; cursor:crosshair"></canvas>
   <div>
     <button id="play">재생</button>
     <button id="step">한 스텝</button>
     <button id="reset">처음으로</button>
+    (그래프를 클릭하면 그 위치가 시작점)
   </div>
   <div>
     <label>학습률 η: <input id="eta" type="range" min="0" max="1000" step="1"></label>
@@ -24,16 +28,14 @@
   </p>
 
   <script type="module">
-    import { J, derivative, step, stopReason } from './src/gd.js';
+    import { derivative, step, stopReason, findFeatures, classifyStop } from './src/gd.js';
+    import { CURVES } from './src/curves.js';
 
-    const ETA0 = 0.1;
-    const THETA0 = -2.5;
     const INTERVAL_MS = 300;
-    const X_MIN = -3, X_MAX = 3, Y_MIN = 0, Y_MAX = 9;
 
-    // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환
+    // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환, 표시값(유효숫자 3자리)으로 반올림
     const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
-    const posToEta = (pos) => 10 ** (LOG_MIN + (pos / 1000) * (LOG_MAX - LOG_MIN));
+    const posToEta = (pos) => Number((10 ** (LOG_MIN + (pos / 1000) * (LOG_MAX - LOG_MIN))).toPrecision(3));
     const etaToPos = (eta) => Math.round(((Math.log10(eta) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 1000);
 
     const STATUS_TEXT = {
@@ -44,48 +46,97 @@
       diverged: '발산',
       maxIter: '최대 반복 도달',
     };
+    const CLASS_TEXT = { global: '전역 최솟값', local: '지역 최솟값', plateau: '평지' };
 
     const canvas = document.getElementById('plot');
     const ctx = canvas.getContext('2d');
-    const toX = (x) => ((x - X_MIN) / (X_MAX - X_MIN)) * canvas.width;
-    const toY = (y) => canvas.height - ((y - Y_MIN) / (Y_MAX - Y_MIN)) * canvas.height;
-
+    const curveSelect = document.getElementById('curve');
     const playBtn = document.getElementById('play');
     const stepBtn = document.getElementById('step');
     const etaInput = document.getElementById('eta');
 
-    let theta = THETA0;
-    let k = 0;
-    let eta = ETA0;
+    let curve;            // 선택된 곡선 (CURVES 항목)
+    let features;         // findFeatures 결과
+    let xMin, xMax, yMin, yMax;
+    let start;            // 시작 θ (곡선의 theta0 또는 클릭한 위치)
+    let theta, k, eta;
     let timer = null;     // 재생 중이면 setInterval id
     let reason = null;    // 멈춘 이유 (converged | diverged | maxIter)
 
+    const toX = (x) => ((x - xMin) / (xMax - xMin)) * canvas.width;
+    const toY = (y) => canvas.height - ((y - yMin) / (yMax - yMin)) * canvas.height;
+    const toTheta = (px) => xMin + (px / canvas.width) * (xMax - xMin);
+
+    function selectCurve(c) {
+      pause();
+      curve = c;
+      [xMin, xMax] = c.range;
+      features = findFeatures(c.f, c.range);
+      // y 범위: 곡선을 샘플링한 최소~최대 + 위아래 5% 여백
+      const ys = Array.from({ length: 301 }, (_, i) => c.f(xMin + (i / 300) * (xMax - xMin)));
+      const lo = Math.min(...ys), hi = Math.max(...ys), pad = (hi - lo) * 0.05;
+      yMin = lo - pad;
+      yMax = hi + pad;
+      eta = c.eta0;
+      etaInput.value = etaToPos(eta);
+      start = c.theta0;
+      reset();
+    }
+
     function draw() {
+      const f = curve.f;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 곡선 J(θ) = θ²
+      // 평지 구간: 회색 띠
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.font = '12px sans-serif';
+      for (const p of features.plateaus) {
+        ctx.fillRect(toX(p.from), 0, toX(p.to) - toX(p.from), canvas.height);
+        ctx.fillStyle = '#555';
+        ctx.fillText('평지', toX((p.from + p.to) / 2) - 12, 14);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      }
+
+      // 곡선
       ctx.beginPath();
       for (let i = 0; i <= 300; i++) {
-        const x = X_MIN + (i / 300) * (X_MAX - X_MIN);
-        if (i === 0) ctx.moveTo(toX(x), toY(J(x)));
-        else ctx.lineTo(toX(x), toY(J(x)));
+        const x = xMin + (i / 300) * (xMax - xMin);
+        if (i === 0) ctx.moveTo(toX(x), toY(f(x)));
+        else ctx.lineTo(toX(x), toY(f(x)));
       }
       ctx.strokeStyle = '#333';
       ctx.stroke();
 
+      // 최솟값: 전역 초록, 지역 주황
+      for (const m of features.minima) {
+        const color = m.global ? 'green' : 'orange';
+        ctx.beginPath();
+        ctx.arc(toX(m.theta), toY(m.J), 5, 0, 2 * Math.PI);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.fillStyle = color;
+        ctx.fillText(m.global ? '전역 최솟값' : '지역 최솟값', toX(m.theta) - 30, toY(m.J) - 10);
+      }
+
       // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음)
       ctx.beginPath();
-      ctx.arc(toX(theta), toY(J(theta)), 6, 0, 2 * Math.PI);
+      ctx.arc(toX(theta), toY(f(theta)), 6, 0, 2 * Math.PI);
       ctx.fillStyle = 'red';
       ctx.fill();
 
-      const status = reason ?? (timer ? 'playing' : k > 0 ? 'paused' : 'idle');
-      document.getElementById('status').textContent = STATUS_TEXT[status];
+      let statusText = STATUS_TEXT[reason ?? (timer ? 'playing' : k > 0 ? 'paused' : 'idle')];
+      if (reason === 'converged' || reason === 'maxIter') {
+        const cls = classifyStop(theta, features, curve.range);
+        if (cls) statusText += ' · ' + CLASS_TEXT[cls];
+      }
+      document.getElementById('status').textContent = statusText;
       document.getElementById('k').textContent = k;
       document.getElementById('theta').textContent = theta.toFixed(4);
-      document.getElementById('j').textContent = J(theta).toFixed(4);
-      document.getElementById('dj').textContent = derivative(J, theta).toFixed(4);
-      document.getElementById('etaValue').textContent = eta.toPrecision(3);
+      document.getElementById('j').textContent = f(theta).toFixed(4);
+      document.getElementById('dj').textContent = derivative(f, theta).toFixed(4);
+      document.getElementById('etaValue').textContent = eta;
 
       playBtn.textContent = timer ? '일시정지' : '재생';
       playBtn.disabled = reason !== null;
@@ -93,9 +144,9 @@
     }
 
     function doStep() {
-      theta = step(J, theta, eta);
+      theta = step(curve.f, theta, eta);
       k++;
-      reason = stopReason(J, theta, k);
+      reason = stopReason(curve.f, theta, k);
       if (reason) pause();
       draw();
     }
@@ -108,17 +159,19 @@
     function pause() {
       clearInterval(timer);
       timer = null;
-      draw();
+      if (curve) draw();
     }
 
+    // 시작점(곡선 기본값 또는 마지막으로 클릭한 위치)으로 되돌림
     function reset() {
-      pause();
-      theta = THETA0;
+      theta = start;
       k = 0;
       reason = null;
-      draw();
+      pause();
     }
 
+    CURVES.forEach((c, i) => curveSelect.add(new Option(c.name, i)));
+    curveSelect.addEventListener('change', () => selectCurve(CURVES[curveSelect.value]));
     playBtn.addEventListener('click', () => (timer ? pause() : play()));
     stepBtn.addEventListener('click', doStep);
     document.getElementById('reset').addEventListener('click', reset);
@@ -127,9 +180,15 @@
       eta = posToEta(Number(etaInput.value));
       draw();
     });
+    // 캔버스 아무 곳이나 클릭: 그 x 위치의 θ를 시작점으로
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const px = (e.clientX - rect.left) * (canvas.width / rect.width);
+      start = toTheta(px);
+      reset();
+    });
 
-    etaInput.value = etaToPos(ETA0);
-    draw();
+    selectCurve(CURVES[0]);
   </script>
 </body>
 </html>

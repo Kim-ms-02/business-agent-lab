@@ -2,10 +2,17 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>경사하강법 v0.3</title>
+  <title>경사하강법 v0.4</title>
 </head>
 <body>
-  <div id="curves">곡선: </div>
+  <div id="curves">예시 곡선: </div>
+  <div>
+    <label>J(x) = <input id="expr" size="45" spellcheck="false"></label>
+    <label>θ 범위 <input id="tmin" type="number" step="any" style="width:5em"></label>
+    <label>~ <input id="tmax" type="number" step="any" style="width:5em"></label>
+    <button id="apply">적용</button>
+  </div>
+  <div id="error" style="color:#c00; min-height:1.2em"></div>
   <canvas id="plot" width="600" height="400" style="border:1px solid #ccc; cursor:crosshair"></canvas>
   <div>
     <button id="play">재생</button>
@@ -28,6 +35,7 @@
   <script type="module">
     import { derivative, step, stopReason, findFeatures, judgeState } from './src/gd.js';
     import { CURVES } from './src/curves.js';
+    import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
 
     const INTERVAL_MS = 300;
 
@@ -56,8 +64,11 @@
     const playBtn = document.getElementById('play');
     const stepBtn = document.getElementById('step');
     const etaInput = document.getElementById('eta');
+    const exprInput = document.getElementById('expr');
+    const tminInput = document.getElementById('tmin');
+    const tmaxInput = document.getElementById('tmax');
 
-    let curve;            // 선택된 곡선 (CURVES 항목)
+    let curve;            // 현재 곡선 { f, range }
     let features;         // findFeatures 결과
     let xMin, xMax, yMin, yMax;
     let start;            // 시작 θ (곡선의 theta0 또는 클릭한 위치)
@@ -69,19 +80,49 @@
     const toY = (y) => canvas.height - ((y - yMin) / (yMax - yMin)) * canvas.height;
     const toTheta = (px) => xMin + (px / canvas.width) * (xMax - xMin);
 
-    function selectCurve(c) {
-      curve = c;
-      [xMin, xMax] = c.range;
-      features = findFeatures(c.f, c.range);
-      // y 범위: 곡선을 샘플링한 최소~최대 + 위아래 여백 (위는 라벨 자리로 10%)
-      const ys = Array.from({ length: 301 }, (_, i) => c.f(xMin + (i / 300) * (xMax - xMin)));
+    // 입력칸의 식과 θ 범위를 해석해 적용. 잘못되면 오류를 보여주고 현재 곡선은 그대로 둔다.
+    // example: 예시 곡선 버튼에서 왔으면 그 곡선의 시작 θ와 η를 쓴다
+    function applyInput(example = null) {
+      const errorEl = document.getElementById('error');
+      let f, range;
+      try {
+        f = parseFunction(exprInput.value);
+        range = readRange();
+        checkDefinedOnRange(f, range);
+      } catch (err) {
+        if (!(err instanceof ParseError)) throw err;
+        errorEl.textContent = err.message;
+        return;
+      }
+      errorEl.textContent = '';
+
+      curve = { f, range };
+      [xMin, xMax] = range;
+      features = findFeatures(f, range);
+      // y 범위: 곡선을 샘플링한 최소~최대(정의되는 점만) + 위아래 여백 (위는 라벨 자리로 10%)
+      const ys = Array.from({ length: 301 }, (_, i) => f(xMin + (i / 300) * (xMax - xMin))).filter(Number.isFinite);
       const lo = Math.min(...ys), hi = Math.max(...ys);
-      yMin = lo - (hi - lo) * 0.05;
-      yMax = hi + (hi - lo) * 0.1;
-      eta = c.eta0;
-      etaInput.value = etaToPos(eta);
-      start = c.theta0;
+      const span = hi - lo || 1; // 상수 함수면 높이 1로
+      yMin = lo - span * 0.05;
+      yMax = hi + span * 0.1;
+      if (example) {
+        eta = example.eta0;
+        etaInput.value = etaToPos(eta);
+        start = example.theta0;
+      } else if (!(start >= xMin && start <= xMax)) {
+        // 직접 입력: 시작점이 새 범위 밖이면 왼쪽 끝에서 10% 지점으로, η는 그대로
+        start = xMin + (xMax - xMin) * 0.1;
+      }
       reset();
+    }
+
+    function readRange() {
+      const a = tminInput.value.trim(), b = tmaxInput.value.trim();
+      if (a === '' || b === '') throw new ParseError('θ 범위의 최소와 최대를 모두 입력하세요.');
+      const lo = Number(a), hi = Number(b);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new ParseError('θ 범위는 숫자여야 합니다.');
+      if (lo >= hi) throw new ParseError('θ 범위의 최소는 최대보다 작아야 합니다.');
+      return [lo, hi];
     }
 
     function draw() {
@@ -114,13 +155,17 @@
         ctx.fillText(m.global ? '전역 최솟값' : '지역 최솟값', labelX, 30);
       }
 
-      // 곡선
+      // 곡선 (값이 정의되지 않는 점에서는 선을 끊음)
       ctx.strokeStyle = '#333';
       ctx.beginPath();
+      let penDown = false;
       for (let i = 0; i <= 300; i++) {
         const x = xMin + (i / 300) * (xMax - xMin);
-        if (i === 0) ctx.moveTo(toX(x), toY(f(x)));
-        else ctx.lineTo(toX(x), toY(f(x)));
+        const y = f(x);
+        if (!Number.isFinite(y)) { penDown = false; continue; }
+        if (penDown) ctx.lineTo(toX(x), toY(y));
+        else ctx.moveTo(toX(x), toY(y));
+        penDown = true;
       }
       ctx.stroke();
 
@@ -172,12 +217,22 @@
       pause();
     }
 
-    // 예시 곡선 버튼
+    // 예시 곡선 버튼: 입력칸에 식과 범위를 채우고 해석기를 거쳐 적용
+    function loadExample(c) {
+      exprInput.value = c.expr;
+      tminInput.value = c.range[0];
+      tmaxInput.value = c.range[1];
+      applyInput(c);
+    }
     for (const c of CURVES) {
       const btn = document.createElement('button');
       btn.textContent = c.name;
-      btn.addEventListener('click', () => selectCurve(c));
+      btn.addEventListener('click', () => loadExample(c));
       document.getElementById('curves').append(btn, ' ');
+    }
+    document.getElementById('apply').addEventListener('click', () => applyInput());
+    for (const input of [exprInput, tminInput, tmaxInput]) {
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyInput(); });
     }
     playBtn.addEventListener('click', () => (timer ? pause() : play()));
     stepBtn.addEventListener('click', doStep);
@@ -195,7 +250,7 @@
       reset();
     });
 
-    selectCurve(CURVES[0]);
+    loadExample(CURVES[0]);
   </script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>경사하강법 v0.4</title>
+  <title>경사하강법 v0.5</title>
 </head>
 <body>
   <div id="curves">예시 곡선: </div>
@@ -276,7 +276,8 @@
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = ctx.fillStyle = COLORS.move;
       if (!Number.isFinite(x1) || Math.abs(x1 - x0) < 3) {
-        ctx.fillText('이동량 ≈ 0', x0, y - 14);
+        // 공이 위쪽 가장자리 근처면(평지·최솟값 라벨과 겹침) 공 아래에 표시
+        ctx.fillText('이동량 ≈ 0', x0, y < 50 ? y + 22 : y - 14);
         ctx.restore();
         return;
       }
@@ -317,7 +318,7 @@
     function drawBall(f) {
       const { alpha } = emphasis(['theta']);
       ctx.save();
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = Math.max(alpha, 0.5); // 공은 흐려져도 위치가 보이게
       if (highlight === 'theta') {
         ctx.strokeStyle = COLORS.theta;
         ctx.setLineDash([4, 4]);
@@ -393,6 +394,21 @@
       start = toTheta(px);
       reset();
     });
+
+    // 공식 칸의 기호(공식 안의 기호 또는 표의 행)에 마우스를 올리면 그래프의 해당 요소를 강조
+    function setHighlight(id) {
+      if (highlight === id) return;
+      highlight = id;
+      for (const el of document.querySelectorAll('#formula [data-sym]')) {
+        el.style.background = el.dataset.sym === id ? '#fff3bf' : '';
+      }
+      // η는 화살표 길이를 정하므로 슬라이더도 강조
+      etaInput.style.outline = id === 'eta' ? `3px solid ${COLORS.eta}` : '';
+      draw();
+    }
+    const formulaEl = document.getElementById('formula');
+    formulaEl.addEventListener('mouseover', (e) => setHighlight(e.target.closest('[data-sym]')?.dataset.sym ?? null));
+    formulaEl.addEventListener('mouseleave', () => setHighlight(null));
 
     buildFormulaTable();
     loadExample(CURVES[0]);

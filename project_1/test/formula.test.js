@@ -35,22 +35,18 @@ test('tangentAt: x²의 θ=1 접선은 y = 2x − 1, 접점에서 J(θ)와 같�
   for (const theta of [-2.5, 0.3, 2]) assert.ok(near(tangentAt(f, theta).y(theta), f(theta), 1e-12));
 });
 
-test('설명 카드 7개의 현재 값이 계산 결과와 일치', () => {
+test('설명 카드 6개의 현재 값이 계산 결과와 일치', () => {
   const f = curve('u').f;
   const theta = -2.5, eta = 0.1;
   const s = { theta, J: f(theta), eta, detail: stepDetail(f, theta, eta) };
-  const value = (id, state = s) => SYMBOLS.find((sym) => sym.id === id).value(state);
-  assert.deepEqual(SYMBOLS.map((sym) => sym.symbol), ['θ', 'J(θ)', 'J′(θ)', 'η', '−', 'η · J′(θ)', 'θ_new']);
+  const value = (id) => SYMBOLS.find((sym) => sym.id === id).value(s);
+  assert.deepEqual(SYMBOLS.map((sym) => sym.symbol), ['θ', 'J(θ)', 'J′(θ)', 'η', 'η · J′(θ)', 'θ_new']);
   assert.equal(value('theta'), '−2.5');
   assert.equal(value('J'), '6.25');
   assert.equal(value('grad'), '−5');
   assert.equal(value('eta'), '0.1');
   assert.equal(value('move'), '−0.5');
   assert.equal(value('next'), '−2');
-  // "−" 카드: 기울기가 음수면 오른쪽, 양수면 왼쪽, 0이면 거의 안 움직임
-  assert.match(value('minus'), /오른쪽/);
-  assert.match(value('minus', { theta: 2, J: 4, eta, detail: stepDetail(f, 2, eta) }), /왼쪽/);
-  assert.match(value('minus', { theta: 0, J: 0, eta, detail: stepDetail(f, 0, eta) }), /움직이지 않/);
   // 모든 카드에 이름과 설명이 있음
   for (const sym of SYMBOLS) assert.ok(sym.name && sym.meaning.length > 10, sym.id);
 });

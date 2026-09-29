@@ -54,13 +54,6 @@ export const SYMBOLS = [
     value: (s) => formatNumber(s.eta),
   },
   {
-    id: 'minus',
-    symbol: '−',
-    name: '반대 방향',
-    meaning: '기울기의 반대쪽으로 가라는 뜻이에요. 오르막의 반대, 곧 내리막 쪽으로 움직여요.',
-    value: (s) => direction(s.detail.move),
-  },
-  {
     id: 'move',
     symbol: 'η · J′(θ)',
     name: '이동량',
@@ -82,14 +75,6 @@ export function formatNumber(x) {
   const r = Number(x.toFixed(4));
   if (r === 0) return '0';
   return r < 0 ? `−${String(-r)}` : String(r);
-}
-
-// 이동 방향: θ_new − θ = −이동량
-function direction(move) {
-  if (!Number.isFinite(move)) return '정의 안 됨';
-  const r = Number(move.toFixed(4));
-  if (r === 0) return '지금은 거의 움직이지 않아요';
-  return r < 0 ? '지금은 오른쪽(θ가 커지는 쪽)으로 이동' : '지금은 왼쪽(θ가 작아지는 쪽)으로 이동';
 }
 
 // 숫자를 대입한 식. 예: θ_new = −2.5 − 0.1 × (−5) = −2

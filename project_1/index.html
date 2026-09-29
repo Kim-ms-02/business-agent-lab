@@ -33,11 +33,13 @@
   </p>
 
   <script type="module">
-    import { derivative, step, stopReason, findFeatures, judgeState } from './src/gd.js';
+    import { derivative, step, stepDetail, tangentAt, stopReason, findFeatures, judgeState } from './src/gd.js';
+    import { COLORS } from './src/formula.js';
     import { CURVES } from './src/curves.js';
     import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
 
     const INTERVAL_MS = 300;
+    const TANGENT_PX = 80; // 접선을 공 양쪽으로 그릴 화면 길이
 
     // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환, 표시값(유효숫자 3자리)으로 반올림
     const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
@@ -75,6 +77,7 @@
     let theta, k, eta;
     let timer = null;     // 재생 중이면 setInterval id
     let reason = null;    // 멈춘 이유 (converged | diverged | maxIter)
+    let highlight = null; // 공식 읽기 칸에서 마우스를 올린 기호 id
 
     const toX = (x) => ((x - xMin) / (xMax - xMin)) * canvas.width;
     const toY = (y) => canvas.height - ((y - yMin) / (yMax - yMin)) * canvas.height;
@@ -169,11 +172,14 @@
       }
       ctx.stroke();
 
-      // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음)
-      ctx.beginPath();
-      ctx.arc(toX(theta), toY(f(theta)), 6, 0, 2 * Math.PI);
-      ctx.fillStyle = 'red';
-      ctx.fill();
+      // 접선, 이동량 화살표, 다음 위치 점, 현재 점
+      const detail = stepDetail(f, theta, eta);
+      if (Number.isFinite(f(theta))) {
+        drawTangent(f);
+        drawMoveArrow(f, detail);
+        drawNextPoint(f, detail);
+      }
+      drawBall(f);
 
       // 상태: 세분화 판정이 있으면 그 문구, 없으면 기본 상태
       const state = k > 0 ? judgeState(reason, theta, features, curve.range) : null;
@@ -188,6 +194,103 @@
       playBtn.textContent = timer ? '일시정지' : '재생';
       playBtn.disabled = reason !== null;
       stepBtn.disabled = reason !== null;
+    }
+
+    // 강조 상태에 따라 선 굵기·투명도를 정한다 (highlight: 마우스를 올린 기호 id, 없으면 null)
+    // ids: 이 그래프 요소를 강조하는 기호 id 목록
+    function emphasis(ids) {
+      if (highlight === null) return { width: 2, alpha: 1 };
+      return ids.includes(highlight) ? { width: 4, alpha: 1 } : { width: 2, alpha: 0.25 };
+    }
+
+    // 접선: 공을 지나고 기울기 J′(θ), 화면에서 공 양쪽으로 TANGENT_PX 씩
+    function drawTangent(f) {
+      const { slope } = tangentAt(f, theta);
+      if (!Number.isFinite(slope)) return;
+      // 화면 좌표에서의 방향 (x 1픽셀당 y 픽셀 변화)
+      const pxPerX = canvas.width / (xMax - xMin), pxPerY = canvas.height / (yMax - yMin);
+      const dx = 1, dy = -slope * (pxPerY / pxPerX);
+      const len = Math.hypot(dx, dy);
+      const ux = (dx / len) * TANGENT_PX, uy = (dy / len) * TANGENT_PX;
+      const cx = toX(theta), cy = toY(f(theta));
+      const { width, alpha } = emphasis(['grad']);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = COLORS.grad;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(cx - ux, cy - uy);
+      ctx.lineTo(cx + ux, cy + uy);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 이동량 화살표: 공 높이에서 수평으로 θ → θ_new (다음 스텝 미리보기). 캔버스 밖이면 가장자리에서 자름
+    function drawMoveArrow(f, { next }) {
+      const y = toY(f(theta));
+      const x0 = toX(theta);
+      const x1 = Math.min(Math.max(toX(next), 0), canvas.width);
+      const { width, alpha } = emphasis(['move', 'eta']);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = ctx.fillStyle = COLORS.move;
+      if (!Number.isFinite(x1) || Math.abs(x1 - x0) < 3) {
+        ctx.fillText('이동량 ≈ 0', x0, y - 14);
+        ctx.restore();
+        return;
+      }
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x1, y);
+      ctx.stroke();
+      // 화살표 머리: 기울기의 반대 방향을 가리킴 ('−' 기호에 마우스를 올리면 강조)
+      const dir = Math.sign(x1 - x0);
+      const head = emphasis(['move', 'eta', 'minus']);
+      ctx.globalAlpha = head.alpha;
+      const size = highlight === 'minus' ? 14 : 9;
+      ctx.beginPath();
+      ctx.moveTo(x1, y);
+      ctx.lineTo(x1 - dir * size, y - size * 0.6);
+      ctx.lineTo(x1 - dir * size, y + size * 0.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 다음 위치 θ_new 의 흐린 점 (항상 표시)
+    function drawNextPoint(f, { next }) {
+      const y = f(next);
+      if (!Number.isFinite(y)) return;
+      const { alpha } = emphasis(['next']);
+      ctx.save();
+      ctx.globalAlpha = alpha * (highlight === 'next' ? 1 : 0.5);
+      ctx.fillStyle = COLORS.next;
+      ctx.beginPath();
+      ctx.arc(toX(next), toY(y), highlight === 'next' ? 7 : 5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음). θ에 마우스를 올리면 세로 점선도 표시
+    function drawBall(f) {
+      const { alpha } = emphasis(['theta']);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      if (highlight === 'theta') {
+        ctx.strokeStyle = COLORS.theta;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(toX(theta), 0);
+        ctx.lineTo(toX(theta), canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.beginPath();
+      ctx.arc(toX(theta), toY(f(theta)), highlight === 'theta' ? 8 : 6, 0, 2 * Math.PI);
+      ctx.fillStyle = COLORS.theta;
+      ctx.fill();
+      ctx.restore();
     }
 
     function doStep() {

@@ -32,9 +32,19 @@
     J′(θ) = <span id="dj"></span>
   </p>
 
+  <div id="formula">
+    <b>공식 읽기</b>
+    <div style="font-size:1.4em; margin:6px 0">
+      <span data-sym="next">θ_new</span> = <span data-sym="theta">θ</span> <span data-sym="minus">−</span>
+      <span data-sym="move"><span data-sym="eta">η</span> · <span data-sym="grad">J′(θ)</span></span>
+    </div>
+    <div id="substituted"></div>
+    <table id="symbols" style="border-collapse:collapse; margin-top:6px"></table>
+  </div>
+
   <script type="module">
     import { derivative, step, stepDetail, tangentAt, stopReason, findFeatures, judgeState } from './src/gd.js';
-    import { COLORS } from './src/formula.js';
+    import { COLORS, SYMBOLS, substituted } from './src/formula.js';
     import { CURVES } from './src/curves.js';
     import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
 
@@ -180,6 +190,7 @@
         drawNextPoint(f, detail);
       }
       drawBall(f);
+      renderFormula(detail);
 
       // 상태: 세분화 판정이 있으면 그 문구, 없으면 기본 상태
       const state = k > 0 ? judgeState(reason, theta, features, curve.range) : null;
@@ -194,6 +205,36 @@
       playBtn.textContent = timer ? '일시정지' : '재생';
       playBtn.disabled = reason !== null;
       stepBtn.disabled = reason !== null;
+    }
+
+    // 공식 읽기 칸: 숫자 대입식과 기호별 현재 값
+    function renderFormula(detail) {
+      const s = { theta, eta, detail };
+      document.getElementById('substituted').textContent = substituted(s);
+      for (const sym of SYMBOLS) {
+        document.getElementById(`value-${sym.id}`).textContent = sym.value(s);
+      }
+    }
+
+    // 공식 칸의 기호 표 만들기 (처음 한 번). 기호 색은 그래프 요소와 같게
+    function buildFormulaTable() {
+      const table = document.getElementById('symbols');
+      for (const sym of SYMBOLS) {
+        const row = table.insertRow();
+        row.dataset.sym = sym.id;
+        const cells = [sym.symbol, sym.meaning, ''];
+        cells.forEach((text, i) => {
+          const cell = row.insertCell();
+          cell.textContent = text;
+          cell.style.padding = '2px 10px';
+          if (i === 0) { cell.style.color = COLORS[sym.id]; cell.style.fontWeight = 'bold'; }
+          if (i === 2) cell.id = `value-${sym.id}`;
+        });
+      }
+      for (const el of document.querySelectorAll('#formula span[data-sym]')) {
+        el.style.color = COLORS[el.dataset.sym];
+        el.style.fontWeight = 'bold';
+      }
     }
 
     // 강조 상태에 따라 선 굵기·투명도를 정한다 (highlight: 마우스를 올린 기호 id, 없으면 null)
@@ -353,6 +394,7 @@
       reset();
     });
 
+    buildFormulaTable();
     loadExample(CURVES[0]);
   </script>
 </body>

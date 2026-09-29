@@ -156,9 +156,6 @@
   <section class="panel status">
     <div id="statusText">상태: <b id="status"></b></div>
     <div>반복 횟수 <b id="k"></b></div>
-    <div>θ = <b id="theta"></b></div>
-    <div>J(θ) = <b id="j"></b></div>
-    <div>J′(θ) = <b id="dj"></b></div>
   </section>
 
   <section id="formula" class="panel">
@@ -176,7 +173,7 @@
 </main>
 
   <script type="module">
-    import { derivative, step, stepDetail, tangentAt, stopReason, findFeatures, judgeState, runUntilStop } from './src/gd.js';
+    import { step, stepDetail, tangentAt, stopReason, findFeatures, judgeState, runUntilStop } from './src/gd.js';
     import { COLORS, COLORS_DARK, SYMBOLS, substituted, formatNumber } from './src/formula.js';
     import { CURVES } from './src/curves.js';
     import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
@@ -643,9 +640,6 @@
       const status = STATE_TEXT[state] ?? STATUS_TEXT[reason ?? (playing ? 'playing' : k > 0 ? 'paused' : 'idle')];
       document.getElementById('status').textContent = status;
       document.getElementById('k').textContent = k;
-      document.getElementById('theta').textContent = theta.toFixed(4);
-      document.getElementById('j').textContent = f(theta).toFixed(4);
-      document.getElementById('dj').textContent = derivative(f, theta).toFixed(4);
       document.getElementById('etaValue').textContent = eta;
 
       playBtn.textContent = playing ? '일시정지' : '재생';

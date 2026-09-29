@@ -44,12 +44,13 @@
 
   <script type="module">
     import { derivative, step, stepDetail, tangentAt, stopReason, findFeatures, judgeState } from './src/gd.js';
-    import { COLORS, SYMBOLS, substituted } from './src/formula.js';
+    import { COLORS, SYMBOLS, substituted, formatNumber } from './src/formula.js';
     import { CURVES } from './src/curves.js';
     import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
 
     const INTERVAL_MS = 300;
     const TANGENT_PX = 80; // 접선을 공 양쪽으로 그릴 화면 길이
+    const AXIS_H = 40;     // 캔버스 아래쪽 가로축(θ축) 띠 높이
 
     // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환, 표시값(유효숫자 3자리)으로 반올림
     const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
@@ -90,7 +91,9 @@
     let highlight = null; // 공식 읽기 칸에서 마우스를 올린 기호 id
 
     const toX = (x) => ((x - xMin) / (xMax - xMin)) * canvas.width;
-    const toY = (y) => canvas.height - ((y - yMin) / (yMax - yMin)) * canvas.height;
+    const plotH = () => canvas.height - AXIS_H;   // 곡선을 그리는 영역 높이
+    const axisY = () => plotH() + 12;              // 가로축 선의 y
+    const toY = (y) => plotH() - ((y - yMin) / (yMax - yMin)) * plotH();
     const toTheta = (px) => xMin + (px / canvas.width) * (xMax - xMin);
 
     // 입력칸의 식과 θ 범위를 해석해 적용. 잘못되면 오류를 보여주고 현재 곡선은 그대로 둔다.
@@ -147,7 +150,7 @@
       // 평지 구간: 회색 띠 + "평지" 라벨
       for (const p of features.plateaus) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-        ctx.fillRect(toX(p.from), 0, toX(p.to) - toX(p.from), canvas.height);
+        ctx.fillRect(toX(p.from), 0, toX(p.to) - toX(p.from), plotH());
         ctx.fillStyle = '#555';
         ctx.fillText('평지', toX((p.from + p.to) / 2), 14);
       }
@@ -182,12 +185,14 @@
       }
       ctx.stroke();
 
-      // 접선, 이동량 화살표, 다음 위치 점, 현재 점
+      // 축, 접선(멈춰 있을 때만), 가로축 위 이동량 화살표, 다음 위치 점, 강조 선, 현재 점
+      drawAxes();
       const detail = stepDetail(f, theta, eta);
       if (Number.isFinite(f(theta))) {
-        drawTangent(f);
-        drawMoveArrow(f, detail);
+        if (!timer) drawTangent(f);
+        drawMoveArrow(detail);
         drawNextPoint(f, detail);
+        drawGuides(f);
       }
       drawBall(f);
       renderFormula(detail);
@@ -209,7 +214,7 @@
 
     // 공식 읽기 칸: 숫자 대입식과 기호별 현재 값
     function renderFormula(detail) {
-      const s = { theta, eta, detail };
+      const s = { theta, J: curve.f(theta), eta, detail };
       document.getElementById('substituted').textContent = substituted(s);
       for (const sym of SYMBOLS) {
         document.getElementById(`value-${sym.id}`).textContent = sym.value(s);
@@ -244,12 +249,30 @@
       return ids.includes(highlight) ? { width: 4, alpha: 1 } : { width: 2, alpha: 0.25 };
     }
 
-    // 접선: 공을 지나고 기울기 J′(θ), 화면에서 공 양쪽으로 TANGENT_PX 씩
+    // 가로축(θ축): 캔버스 아래쪽, 세로축(J축): 캔버스 왼쪽 끝
+    function drawAxes() {
+      ctx.save();
+      ctx.strokeStyle = ctx.fillStyle = '#999';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, axisY());
+      ctx.lineTo(canvas.width, axisY());
+      ctx.moveTo(0.5, 0);
+      ctx.lineTo(0.5, axisY());
+      ctx.stroke();
+      ctx.textAlign = 'right';
+      ctx.fillText('θ', canvas.width - 4, axisY() - 4);
+      ctx.textAlign = 'left';
+      ctx.fillText('J', 5, 12);
+      ctx.restore();
+    }
+
+    // 접선: 공을 지나고 기울기 J′(θ), 화면에서 공 양쪽으로 TANGENT_PX 씩, 파란 점선 + 기울기 값
     function drawTangent(f) {
       const { slope } = tangentAt(f, theta);
       if (!Number.isFinite(slope)) return;
       // 화면 좌표에서의 방향 (x 1픽셀당 y 픽셀 변화)
-      const pxPerX = canvas.width / (xMax - xMin), pxPerY = canvas.height / (yMax - yMin);
+      const pxPerX = canvas.width / (xMax - xMin), pxPerY = plotH() / (yMax - yMin);
       const dx = 1, dy = -slope * (pxPerY / pxPerX);
       const len = Math.hypot(dx, dy);
       const ux = (dx / len) * TANGENT_PX, uy = (dy / len) * TANGENT_PX;
@@ -257,36 +280,46 @@
       const { width, alpha } = emphasis(['grad']);
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = COLORS.grad;
+      ctx.strokeStyle = ctx.fillStyle = COLORS.grad;
       ctx.lineWidth = width;
+      ctx.setLineDash([6, 4]);
       ctx.beginPath();
       ctx.moveTo(cx - ux, cy - uy);
       ctx.lineTo(cx + ux, cy + uy);
       ctx.stroke();
+      // 기울기 값: 접선 오른쪽 끝 옆 (캔버스 안쪽으로 제한)
+      ctx.font = highlight === 'grad' ? 'bold 13px sans-serif' : '12px sans-serif';
+      const lx = Math.min(Math.max(cx + ux + 8, 50), canvas.width - 50);
+      const ly = Math.min(Math.max(cy + uy + (uy < 0 ? -6 : 14), 14), plotH() - 4);
+      ctx.fillText(`기울기 = ${formatNumber(slope)}`, lx, ly);
       ctx.restore();
     }
 
-    // 이동량 화살표: 공 높이에서 수평으로 θ → θ_new (다음 스텝 미리보기). 캔버스 밖이면 가장자리에서 자름
-    function drawMoveArrow(f, { next }) {
-      const y = toY(f(theta));
+    // 이동량 화살표: 가로축 위에서 θ → θ_new (다음 스텝 미리보기), 주황 + "η·J′ = 값".
+    // 캔버스 밖이면 가장자리에서 자름, 3px 미만이면 값만 표시
+    function drawMoveArrow({ move, next }) {
+      const y = axisY();
       const x0 = toX(theta);
       const x1 = Math.min(Math.max(toX(next), 0), canvas.width);
       const { width, alpha } = emphasis(['move', 'eta']);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = ctx.fillStyle = COLORS.move;
-      if (!Number.isFinite(x1) || Math.abs(x1 - x0) < 3) {
-        // 공이 위쪽 가장자리 근처면(평지·최솟값 라벨과 겹침) 공 아래에 표시
-        ctx.fillText('이동량 ≈ 0', x0, y < 50 ? y + 22 : y - 14);
+      const label = `η·J′ = ${formatNumber(move)}`;
+      const labelX = (x) => Math.min(Math.max(x, 45), canvas.width - 45);
+      ctx.font = highlight === 'move' || highlight === 'eta' ? 'bold 13px sans-serif' : '12px sans-serif';
+      if (!Number.isFinite(x0) || !Number.isFinite(x1) || Math.abs(x1 - x0) < 3) {
+        ctx.fillText(label, labelX(x0), y + 20);
         ctx.restore();
         return;
       }
-      ctx.lineWidth = width;
+      ctx.lineWidth = width + 1;
       ctx.beginPath();
       ctx.moveTo(x0, y);
       ctx.lineTo(x1, y);
       ctx.stroke();
-      // 화살표 머리: 기울기의 반대 방향을 가리킴 ('−' 기호에 마우스를 올리면 강조)
+      ctx.fillText(label, labelX((x0 + x1) / 2), y + 20);
+      // 화살표 머리: 기울기의 반대 방향을 가리킴 ('−' 기호를 강조하면 커짐)
       const dir = Math.sign(x1 - x0);
       const head = emphasis(['move', 'eta', 'minus']);
       ctx.globalAlpha = head.alpha;
@@ -314,22 +347,40 @@
       ctx.restore();
     }
 
-    // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음). θ에 마우스를 올리면 세로 점선도 표시
+    // 강조 선: θ → 공에서 가로축으로 내린 선, J(θ) → 공에서 세로축으로 이은 선
+    function drawGuides(f) {
+      const cx = toX(theta), cy = toY(f(theta));
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.font = 'bold 13px sans-serif';
+      if (highlight === 'theta') {
+        ctx.strokeStyle = ctx.fillStyle = COLORS.theta;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, axisY());
+        ctx.stroke();
+        ctx.fillText(`θ = ${formatNumber(theta)}`, Math.min(Math.max(cx, 40), canvas.width - 40), axisY() - 6);
+      }
+      if (highlight === 'J') {
+        ctx.strokeStyle = ctx.fillStyle = COLORS.J;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(0, cy);
+        ctx.stroke();
+        ctx.textAlign = 'left';
+        ctx.fillText(`J = ${formatNumber(f(theta))}`, 6, cy - 6);
+      }
+      ctx.restore();
+    }
+
+    // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음)
     function drawBall(f) {
-      const { alpha } = emphasis(['theta']);
+      const { alpha } = emphasis(['theta', 'J']);
       ctx.save();
       ctx.globalAlpha = Math.max(alpha, 0.5); // 공은 흐려져도 위치가 보이게
-      if (highlight === 'theta') {
-        ctx.strokeStyle = COLORS.theta;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(toX(theta), 0);
-        ctx.lineTo(toX(theta), canvas.height);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
       ctx.beginPath();
-      ctx.arc(toX(theta), toY(f(theta)), highlight === 'theta' ? 8 : 6, 0, 2 * Math.PI);
+      ctx.arc(toX(theta), toY(f(theta)), highlight === 'theta' || highlight === 'J' ? 8 : 6, 0, 2 * Math.PI);
       ctx.fillStyle = COLORS.theta;
       ctx.fill();
       ctx.restore();

@@ -173,6 +173,7 @@
     const TRAIL_MAX = 60;      // 궤적에 남길 최근 자리 수
     const MANUAL_FLIGHT = 450; // "한 스텝"을 눌렀을 때 공이 날아가는 시간(ms)
     const DEFAULT_SPEED = 3;   // 초당 스텝
+    const BALL_ALPHA = 0.7;    // 지금 공의 불투명도 (곡선·접선이 비쳐 보이게)
 
     // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환, 표시값(유효숫자 3자리)으로 반올림
     const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
@@ -486,7 +487,7 @@
       }
       for (let i = 0; i < pts.length - 1; i++) {
         const p = screen(pts[i]);
-        drawBallAt(p.x, p.y, 6, 0.12 + 0.2 * ((i + 1) / pts.length));
+        drawBallAt(p.x, p.y, 4, 0.12 + 0.2 * ((i + 1) / pts.length));
       }
     }
 
@@ -609,14 +610,14 @@
     // 지금 공: 날아가는 중이면 포물선 위, 아니면 곡선 위
     function drawCurrentBall(now) {
       const { alpha } = emphasis(['theta', 'J']);
-      const r = highlight === 'theta' || highlight === 'J' ? 11 : 9;
+      const r = highlight === 'theta' || highlight === 'J' ? 8 : 6;
       let p = screen(theta);
       if (flight) {
         const p0 = screen(flight.from), p1 = screen(flight.to);
         const t = Math.min((now - flight.start) / flight.dur, 1);
         p = arcPoint(p0, p1, t, arcHeight(p0, p1));
       }
-      drawBallAt(p.x, p.y, r, Math.max(alpha, 0.5)); // 공은 흐려져도 위치가 보이게
+      drawBallAt(p.x, p.y, r, alpha === 1 ? BALL_ALPHA : 0.4); // 반투명, 다른 기호를 강조할 때도 위치가 보이게
     }
 
     // ---------- 상태·공식 칸 ----------

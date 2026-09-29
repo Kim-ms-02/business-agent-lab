@@ -12,6 +12,17 @@ export const COLORS = {
   next: '#6e7781',   // 회색: 다음 위치 점
 };
 
+// 다크 모드용: 같은 계열의 밝은 색
+export const COLORS_DARK = {
+  theta: '#ff7b72',
+  J: '#39c5bb',
+  grad: '#58a6ff',
+  eta: '#d2a8ff',
+  minus: '#c9d1d9',
+  move: '#ffa657',
+  next: '#8b949e',
+};
+
 // 설명 카드 순서
 export const SYMBOLS = [
   {

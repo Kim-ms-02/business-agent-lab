@@ -40,6 +40,20 @@ export function stopReason(f, theta, k, { tol = TOL, limit = DIVERGE_LIMIT, maxI
   return null;
 }
 
+// 멈출 때까지 한 번에 계산 ("끝까지 바로 실행"). k: 지금까지의 반복 횟수 (이어서 계산할 때)
+// 반환: { theta, k, reason, path } — path는 지나온 θ (시작 θ 포함)
+export function runUntilStop(f, theta, eta, k = 0, maxIter = MAX_ITER) {
+  const path = [theta];
+  let reason = stopReason(f, theta, k, { maxIter });
+  while (reason === null) {
+    theta = step(f, theta, eta);
+    k++;
+    path.push(theta);
+    reason = stopReason(f, theta, k, { maxIter });
+  }
+  return { theta, k, reason, path };
+}
+
 // 범위 [a, b]를 n칸으로 나눠 J′ 부호 변화로 최솟값, 기울기가 아주 작은 구간으로 평지를 찾는다.
 // 평지 기준: |J′| < flatRatio × (J 최대 − J 최소) / (b − a). 최솟값·극댓값이 들어 있는 구간은 평지가 아니다.
 // 범위 끝점은 최솟값으로 보지 않는다. 값이 정의되지 않는 점(NaN·무한대)은 건너뛴다.

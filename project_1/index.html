@@ -2,55 +2,177 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>경사하강법 v0.5</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>경사하강법 v0.6</title>
+  <style>
+    :root {
+      --font: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+      --bg: #faf9f6;
+      --fg: #1f2328;
+      --muted: #57606a;
+      --panel: #ffffff;
+      --border: #d0d7de;
+      --curve: #1f2328;
+      --axis: #1f2328;
+      --plateau: rgba(0, 0, 0, 0.06);
+      --global: #1a7f37;
+      --local: #9a6700;
+      --hl: #fff3bf;
+      --btn: #f6f8fa;
+      --primary: #0969da;
+      --error: #cf222e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --fg: #e6edf3;
+        --muted: #8b949e;
+        --panel: #161b22;
+        --border: #30363d;
+        --curve: #e6edf3;
+        --axis: #c9d1d9;
+        --plateau: rgba(255, 255, 255, 0.07);
+        --global: #3fb950;
+        --local: #d29922;
+        --hl: #3d3000;
+        --btn: #21262d;
+        --primary: #1f6feb;
+        --error: #ff7b72;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--font); }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 1.35em; margin: 4px 0 12px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: 12px 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .label { color: var(--muted); font-size: 0.9em; }
+    button {
+      font: inherit; min-height: 38px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--btn); color: var(--fg);
+    }
+    button.primary { background: var(--primary); border-color: transparent; color: #fff; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+    input[type="text"], input[type="number"] {
+      font: inherit; padding: 6px 8px; border-radius: 8px; min-height: 38px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+    }
+    #expr { flex: 1 1 240px; min-width: 0; font-family: ui-monospace, Menlo, monospace; }
+    #tmin, #tmax { width: 5.5em; }
+    #maxIter { width: 7em; }
+    input[type="range"] { width: 100%; accent-color: var(--primary); }
+    .error { color: var(--error); min-height: 1.4em; font-size: 0.92em; }
+    canvas {
+      display: block; width: 100%; border-radius: 10px; cursor: crosshair; touch-action: manipulation;
+      background: var(--panel); border: 1px solid var(--border);
+    }
+    .hint { color: var(--muted); font-size: 0.88em; margin: 4px 2px 0; }
+    .sliders { display: grid; grid-template-columns: max-content 1fr 9em; gap: 6px 12px; align-items: center; margin-top: 10px; }
+    .sliders output { font-variant-numeric: tabular-nums; }
+    .status { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; font-variant-numeric: tabular-nums; }
+    .status b { font-weight: 600; }
+    #statusText { grid-column: 1 / -1; font-size: 1.1em; }
+
+    #formula [data-sym] { cursor: pointer; border-radius: 4px; padding: 0 2px; }
+    #formula .on { background: var(--hl); }
+    .big-formula { font-size: clamp(1.5em, 6vw, 2.1em); margin: 6px 0; font-family: "Times New Roman", serif; }
+    .big-formula span { font-weight: bold; }
+    #substituted { font-size: 1.1em; font-variant-numeric: tabular-nums; }
+    #cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
+    #cards button { text-align: left; padding: 10px; background: var(--panel); height: 100%; }
+    #cards button.on { background: var(--hl); }
+    #cards button[aria-pressed="true"] { border: 2px solid var(--fg); }
+    #cards .sym { font-size: 1.3em; font-weight: bold; font-family: "Times New Roman", serif; }
+    #cards .meaning { font-size: 0.9em; color: var(--muted); margin: 4px 0; }
+
+    @media (max-width: 520px) {
+      .wrap { padding: 10px; }
+      .sliders { grid-template-columns: 1fr max-content; }
+      .sliders label { grid-column: 1 / -1; margin-top: 4px; }
+      .sliders input[type="range"] { grid-column: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
 </head>
 <body>
-  <div id="curves">예시 곡선: </div>
-  <div>
-    <label>J(x) = <input id="expr" size="45" spellcheck="false"></label>
-    <label>θ 범위 <input id="tmin" type="number" step="any" style="width:5em"></label>
-    <label>~ <input id="tmax" type="number" step="any" style="width:5em"></label>
-    <button id="apply">적용</button>
-  </div>
-  <div id="error" style="color:#c00; min-height:1.2em"></div>
-  <canvas id="plot" width="600" height="400" style="border:1px solid #ccc; cursor:crosshair"></canvas>
-  <div>
-    <button id="play">재생</button>
-    <button id="step">한 스텝</button>
-    <button id="reset">처음으로</button>
-    (그래프를 클릭하면 그 위치에서 다시 시작)
-  </div>
-  <div>
-    <label>학습률 η: <input id="eta" type="range" min="0" max="1000" step="1"></label>
-    <span id="etaValue"></span>
-  </div>
-  <p>
-    상태: <span id="status"></span><br>
-    반복 횟수: <span id="k"></span><br>
-    θ = <span id="theta"></span><br>
-    J(θ) = <span id="j"></span><br>
-    J′(θ) = <span id="dj"></span>
-  </p>
+<main class="wrap">
+  <h1>경사하강법: 기울기를 보고 비탈을 내려가는 공</h1>
 
-  <div id="formula">
+  <section class="panel">
+    <div class="row">
+      <span class="label">예시 곡선</span>
+      <span id="curves" class="row"></span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label for="expr">J(x) =</label>
+      <input id="expr" type="text" spellcheck="false" autocomplete="off">
+      <label>θ 범위 <input id="tmin" type="number" step="any"></label>
+      <label>~ <input id="tmax" type="number" step="any"></label>
+      <button id="apply">적용</button>
+    </div>
+    <div id="error" class="error" role="alert"></div>
+  </section>
+
+  <canvas id="plot" aria-label="비용 함수 그래프와 공"></canvas>
+  <p class="hint">그래프를 누르면 그 위치에서 다시 시작해요.</p>
+
+  <section class="panel">
+    <div class="row">
+      <button id="play" class="primary">재생</button>
+      <button id="step">한 스텝</button>
+      <button id="runToEnd">끝까지 바로 실행</button>
+      <button id="reset">처음으로</button>
+    </div>
+    <div class="sliders">
+      <label for="eta">학습률 η</label>
+      <input id="eta" type="range" min="0" max="1000" step="1">
+      <output id="etaValue" for="eta"></output>
+
+      <label for="speed">재생 속도</label>
+      <input id="speed" type="range" min="0" max="1000" step="1">
+      <output id="speedValue" for="speed"></output>
+
+      <label for="maxIter">최대 반복</label>
+      <span class="row"><input id="maxIter" type="number" min="1" max="100000" step="1" value="1000" inputmode="numeric"></span>
+      <span></span>
+    </div>
+    <div id="iterError" class="error" role="alert"></div>
+  </section>
+
+  <section class="panel status">
+    <div id="statusText">상태: <b id="status"></b></div>
+    <div>반복 횟수 <b id="k"></b></div>
+    <div>θ = <b id="theta"></b></div>
+    <div>J(θ) = <b id="j"></b></div>
+    <div>J′(θ) = <b id="dj"></b></div>
+  </section>
+
+  <section id="formula" class="panel">
     <b>공식 읽기</b>
-    <div style="font-size:1.4em; margin:6px 0">
-      <span data-sym="next">θ_new</span> = <span data-sym="theta">θ</span> <span data-sym="minus">−</span>
+    <div class="hint">기호에 마우스를 올리거나 누르면 그래프에서 강조돼요. 카드는 Tab으로 이동, Enter로 고정, Esc로 풀기.</div>
+    <div class="big-formula">
+      <span data-sym="next">θ<sub>new</sub></span> = <span data-sym="theta">θ</span> <span data-sym="minus">−</span>
       <span data-sym="move"><span data-sym="eta">η</span> · <span data-sym="grad">J′(θ)</span></span>
     </div>
     <div id="substituted"></div>
-    <table id="symbols" style="border-collapse:collapse; margin-top:6px"></table>
-  </div>
+    <div id="cards"></div>
+  </section>
+</main>
 
   <script type="module">
-    import { derivative, step, stepDetail, tangentAt, stopReason, findFeatures, judgeState } from './src/gd.js';
-    import { COLORS, SYMBOLS, substituted, formatNumber } from './src/formula.js';
+    import { derivative, step, stepDetail, tangentAt, stopReason, findFeatures, judgeState, runUntilStop } from './src/gd.js';
+    import { COLORS, COLORS_DARK, SYMBOLS, substituted, formatNumber } from './src/formula.js';
     import { CURVES } from './src/curves.js';
     import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
+    import { arcPoint, arcHeight, posToSpeed, speedToPos, formatSpeed, flightMs, parseMaxIter } from './src/playback.js';
 
-    const INTERVAL_MS = 300;
-    const TANGENT_PX = 80; // 접선을 공 양쪽으로 그릴 화면 길이
-    const AXIS_H = 40;     // 캔버스 아래쪽 가로축(θ축) 띠 높이
+    const TRAIL_MAX = 60;      // 궤적에 남길 최근 자리 수
+    const MANUAL_FLIGHT = 450; // "한 스텝"을 눌렀을 때 공이 날아가는 시간(ms)
+    const DEFAULT_SPEED = 3;   // 초당 스텝
 
     // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환, 표시값(유효숫자 3자리)으로 반올림
     const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
@@ -76,7 +198,10 @@
     const ctx = canvas.getContext('2d');
     const playBtn = document.getElementById('play');
     const stepBtn = document.getElementById('step');
+    const runBtn = document.getElementById('runToEnd');
     const etaInput = document.getElementById('eta');
+    const speedInput = document.getElementById('speed');
+    const maxIterInput = document.getElementById('maxIter');
     const exprInput = document.getElementById('expr');
     const tminInput = document.getElementById('tmin');
     const tmaxInput = document.getElementById('tmax');
@@ -86,15 +211,69 @@
     let xMin, xMax, yMin, yMax;
     let start;            // 시작 θ (곡선의 theta0 또는 클릭한 위치)
     let theta, k, eta;
-    let timer = null;     // 재생 중이면 setInterval id
+    let speed = DEFAULT_SPEED;
+    let maxIter = 1000;
     let reason = null;    // 멈춘 이유 (converged | diverged | maxIter)
-    let highlight = null; // 공식 읽기 칸에서 마우스를 올린 기호 id
+    let highlight = null; // 공식 읽기 칸에서 강조 중인 기호 id
+    let trail = [];       // 지나온 θ (현재 위치 제외)
 
-    const toX = (x) => ((x - xMin) / (xMax - xMin)) * canvas.width;
-    const plotH = () => canvas.height - AXIS_H;   // 곡선을 그리는 영역 높이
-    const axisY = () => plotH() + 12;              // 가로축 선의 y
-    const toY = (y) => plotH() - ((y - yMin) / (yMax - yMin)) * plotH();
-    const toTheta = (px) => xMin + (px / canvas.width) * (xMax - xMin);
+    // 재생 상태
+    let playing = false;
+    let stoppedWhilePlaying = false; // 재생 중에 최대 반복으로 멈췄으면, 최대 반복을 늘릴 때 이어서 재생
+    let flight = null;               // 공이 날아가는 중이면 { from, to, start, dur }
+    let rafId = null, lastT = 0, acc = 0;
+
+    // 운영체제 설정: 다크 모드, 동작 줄이기
+    const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+    const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+    let reducedMotion = motionQuery.matches;
+    let pal, sym, font;   // 캔버스 색, 기호 색, 글꼴
+
+    function applyPalette() {
+      const cs = getComputedStyle(document.documentElement);
+      const v = (name) => cs.getPropertyValue(name).trim();
+      pal = {
+        curve: v('--curve'), axis: v('--axis'), muted: v('--muted'), plateau: v('--plateau'),
+        global: v('--global'), local: v('--local'), panel: v('--panel'),
+      };
+      sym = darkQuery.matches ? COLORS_DARK : COLORS;
+      font = v('--font');
+      for (const [id, color] of Object.entries(sym)) document.documentElement.style.setProperty(`--c-${id}`, color);
+    }
+
+    // 캔버스 크기: 화면 폭에 맞추고 고해상도 화면에서도 선명하게 (좌표는 CSS 픽셀 기준)
+    let W = 600, H = 380;
+    function resizeCanvas() {
+      W = canvas.clientWidth;
+      H = Math.round(Math.max(Math.min(W * 0.62, 460), 250));
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.height = `${H}px`;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // 그래프 영역: 왼쪽에 세로축, 아래쪽에 가로축(이동량 화살표 자리)
+    const PAD_L = 34, PAD_R = 16, PAD_T = 34;
+    const axisX = () => PAD_L - 12;
+    const axisY = () => H - 28;
+    const plotBottom = () => axisY() - 10;
+    const toX = (x) => PAD_L + ((x - xMin) / (xMax - xMin)) * (W - PAD_L - PAD_R);
+    const toY = (y) => plotBottom() - ((y - yMin) / (yMax - yMin)) * (plotBottom() - PAD_T);
+    const toTheta = (px) => xMin + ((px - PAD_L) / (W - PAD_L - PAD_R)) * (xMax - xMin);
+    const screen = (t) => ({ x: toX(t), y: toY(curve.f(t)) });
+    const setFont = (size, bold = false) => { ctx.font = `${bold ? 'bold ' : ''}${size}px ${font}`; };
+    const clampX = (x, m) => Math.min(Math.max(x, m), W - m);
+    // 글자 뒤에 배경색 테두리를 둘러 곡선·점선 위에서도 읽히게
+    function fillLabel(text, x, y) {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = pal.panel;
+      ctx.strokeText(text, x, y);
+      ctx.restore();
+      ctx.fillText(text, x, y);
+    }
 
     // 입력칸의 식과 θ 범위를 해석해 적용. 잘못되면 오류를 보여주고 현재 곡선은 그대로 둔다.
     // example: 예시 곡선 버튼에서 왔으면 그 곡선의 시작 θ와 η를 쓴다
@@ -115,12 +294,12 @@
       curve = { f, range };
       [xMin, xMax] = range;
       features = findFeatures(f, range);
-      // y 범위: 곡선을 샘플링한 최소~최대(정의되는 점만) + 위아래 여백 (위는 라벨 자리로 10%)
+      // y 범위: 곡선을 샘플링한 최소~최대(정의되는 점만) + 위아래 여백
       const ys = Array.from({ length: 301 }, (_, i) => f(xMin + (i / 300) * (xMax - xMin))).filter(Number.isFinite);
       const lo = Math.min(...ys), hi = Math.max(...ys);
       const span = hi - lo || 1; // 상수 함수면 높이 1로
       yMin = lo - span * 0.05;
-      yMax = hi + span * 0.1;
+      yMax = hi + span * 0.05;
       if (example) {
         eta = example.eta0;
         etaInput.value = etaToPos(eta);
@@ -141,42 +320,80 @@
       return [lo, hi];
     }
 
+    // ---------- 그리기 ----------
+
     function draw() {
+      if (!curve) return;
       const f = curve.f;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = '12px sans-serif';
+      const now = performance.now();
+      if (flight && now - flight.start >= flight.dur) flight = null;
+      ctx.clearRect(0, 0, W, H);
       ctx.textAlign = 'center';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
-      // 평지 구간: 회색 띠 + "평지" 라벨
-      for (const p of features.plateaus) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-        ctx.fillRect(toX(p.from), 0, toX(p.to) - toX(p.from), plotH());
-        ctx.fillStyle = '#555';
-        ctx.fillText('평지', toX((p.from + p.to) / 2), 14);
+      // 그래프 영역 밖(축 띠)으로 선이 넘치지 않게 자름
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(axisX() + 1, 0, W - axisX() - 1, plotBottom() + 6);
+      ctx.clip();
+      drawPlateaus();
+      drawMinima();
+      drawCurve(f);
+      drawTrail();
+      ctx.restore();
+
+      drawAxes();
+      const detail = stepDetail(f, theta, eta);
+      const settled = !playing && !flight;
+      if (Number.isFinite(f(theta))) {
+        if (settled) {
+          drawTangent(f);
+          drawNextPoint(f, detail);
+          drawGuides(f);
+        }
+        drawMoveArrow(detail);
       }
+      drawCurrentBall(now);
+      renderPanel(detail);
+    }
 
-      // 최솟값: 점선 + 라벨 (전역 초록, 지역 주황)
+    function drawPlateaus() {
+      setFont(12);
+      for (const p of features.plateaus) {
+        ctx.fillStyle = pal.plateau;
+        ctx.fillRect(toX(p.from), 0, toX(p.to) - toX(p.from), plotBottom() + 6);
+        ctx.fillStyle = pal.muted;
+        ctx.fillText('평지', toX((p.from + p.to) / 2), 16);
+      }
+    }
+
+    // 최솟값: 점선 + 라벨 (전역·지역 색 구분)
+    function drawMinima() {
+      setFont(12, true);
       for (const m of features.minima) {
-        const color = m.global ? 'green' : 'orange';
-        ctx.strokeStyle = color;
+        const color = m.global ? pal.global : pal.local;
+        ctx.strokeStyle = ctx.fillStyle = color;
+        ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         ctx.moveTo(toX(m.theta), toY(m.J));
-        ctx.lineTo(toX(m.theta), 20);
+        ctx.lineTo(toX(m.theta), PAD_T - 4);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = color;
-        // 라벨이 캔버스 밖으로 잘리지 않게 가장자리에서 안쪽으로
-        const labelX = Math.min(Math.max(toX(m.theta), 35), canvas.width - 35);
-        ctx.fillText(m.global ? '전역 최솟값' : '지역 최솟값', labelX, 30);
+        fillLabel(m.global ? '전역 최솟값' : '지역 최솟값', clampX(toX(m.theta), 40), PAD_T - 10);
       }
+    }
 
-      // 곡선 (값이 정의되지 않는 점에서는 선을 끊음)
-      ctx.strokeStyle = '#333';
+    // 곡선: 교과서 그림처럼 굵게 (값이 정의되지 않는 점에서는 선을 끊음)
+    function drawCurve(f) {
+      ctx.strokeStyle = pal.curve;
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
       let penDown = false;
-      for (let i = 0; i <= 300; i++) {
-        const x = xMin + (i / 300) * (xMax - xMin);
+      const n = Math.max(300, Math.round(W));
+      for (let i = 0; i <= n; i++) {
+        const x = xMin + (i / n) * (xMax - xMin);
         const y = f(x);
         if (!Number.isFinite(y)) { penDown = false; continue; }
         if (penDown) ctx.lineTo(toX(x), toY(y));
@@ -184,132 +401,154 @@
         penDown = true;
       }
       ctx.stroke();
-
-      // 축, 접선(멈춰 있을 때만), 가로축 위 이동량 화살표, 다음 위치 점, 강조 선, 현재 점
-      drawAxes();
-      const detail = stepDetail(f, theta, eta);
-      if (Number.isFinite(f(theta))) {
-        if (!timer) drawTangent(f);
-        drawMoveArrow(detail);
-        drawNextPoint(f, detail);
-        drawGuides(f);
-      }
-      drawBall(f);
-      renderFormula(detail);
-
-      // 상태: 세분화 판정이 있으면 그 문구, 없으면 기본 상태
-      const state = k > 0 ? judgeState(reason, theta, features, curve.range) : null;
-      const status = STATE_TEXT[state] ?? STATUS_TEXT[reason ?? (timer ? 'playing' : k > 0 ? 'paused' : 'idle')];
-      document.getElementById('status').textContent = status;
-      document.getElementById('k').textContent = k;
-      document.getElementById('theta').textContent = theta.toFixed(4);
-      document.getElementById('j').textContent = f(theta).toFixed(4);
-      document.getElementById('dj').textContent = derivative(f, theta).toFixed(4);
-      document.getElementById('etaValue').textContent = eta;
-
-      playBtn.textContent = timer ? '일시정지' : '재생';
-      playBtn.disabled = reason !== null;
-      stepBtn.disabled = reason !== null;
     }
 
-    // 공식 읽기 칸: 숫자 대입식과 기호별 현재 값
-    function renderFormula(detail) {
-      const s = { theta, J: curve.f(theta), eta, detail };
-      document.getElementById('substituted').textContent = substituted(s);
-      for (const sym of SYMBOLS) {
-        document.getElementById(`value-${sym.id}`).textContent = sym.value(s);
-      }
+    // 화살표 머리: 끝점 (x, y)에서 방향 (dx, dy)를 가리키는 삼각형
+    function arrowHead(x, y, dx, dy, size) {
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - ux * size - uy * size * 0.55, y - uy * size + ux * size * 0.55);
+      ctx.lineTo(x - ux * size + uy * size * 0.55, y - uy * size - ux * size * 0.55);
+      ctx.closePath();
+      ctx.fill();
     }
 
-    // 공식 칸의 기호 표 만들기 (처음 한 번). 기호 색은 그래프 요소와 같게
-    function buildFormulaTable() {
-      const table = document.getElementById('symbols');
-      for (const sym of SYMBOLS) {
-        const row = table.insertRow();
-        row.dataset.sym = sym.id;
-        const cells = [sym.symbol, sym.meaning, ''];
-        cells.forEach((text, i) => {
-          const cell = row.insertCell();
-          cell.textContent = text;
-          cell.style.padding = '2px 10px';
-          if (i === 0) { cell.style.color = COLORS[sym.id]; cell.style.fontWeight = 'bold'; }
-          if (i === 2) cell.id = `value-${sym.id}`;
-        });
-      }
-      for (const el of document.querySelectorAll('#formula span[data-sym]')) {
-        el.style.color = COLORS[el.dataset.sym];
-        el.style.fontWeight = 'bold';
-      }
-    }
-
-    // 강조 상태에 따라 선 굵기·투명도를 정한다 (highlight: 마우스를 올린 기호 id, 없으면 null)
-    // ids: 이 그래프 요소를 강조하는 기호 id 목록
-    function emphasis(ids) {
-      if (highlight === null) return { width: 2, alpha: 1 };
-      return ids.includes(highlight) ? { width: 4, alpha: 1 } : { width: 2, alpha: 0.25 };
-    }
-
-    // 가로축(θ축): 캔버스 아래쪽, 세로축(J축): 캔버스 왼쪽 끝
+    // 가로축(θ)과 세로축(J(θ)): 끝에 화살표가 있는 교과서식 축
     function drawAxes() {
       ctx.save();
-      ctx.strokeStyle = ctx.fillStyle = '#999';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = ctx.fillStyle = pal.axis;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(0, axisY());
-      ctx.lineTo(canvas.width, axisY());
-      ctx.moveTo(0.5, 0);
-      ctx.lineTo(0.5, axisY());
+      ctx.moveTo(axisX(), axisY());
+      ctx.lineTo(W - 6, axisY());
+      ctx.moveTo(axisX(), axisY());
+      ctx.lineTo(axisX(), 8);
       ctx.stroke();
+      arrowHead(W - 4, axisY(), 1, 0, 9);
+      arrowHead(axisX(), 6, 0, -1, 9);
+      setFont(14, true);
       ctx.textAlign = 'right';
-      ctx.fillText('θ', canvas.width - 4, axisY() - 4);
+      ctx.fillText('θ', W - 6, axisY() - 8);
       ctx.textAlign = 'left';
-      ctx.fillText('J', 5, 12);
+      ctx.fillText('J(θ)', axisX() + 8, 16);
       ctx.restore();
     }
 
-    // 접선: 공을 지나고 기울기 J′(θ), 화면에서 공 양쪽으로 TANGENT_PX 씩, 파란 점선 + 기울기 값
+    // 공: 빛을 받은 것처럼 그라디언트
+    function drawBallAt(x, y, r, alpha) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)');
+      g.addColorStop(0.35, sym.theta);
+      g.addColorStop(1, sym.theta);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 두 자리 사이의 휘어진 화살표 (공이 튄 포물선)
+    function drawArcArrow(p0, p1, alpha) {
+      if (![p0.x, p0.y, p1.x, p1.y].every(Number.isFinite)) return;
+      const h = arcHeight(p0, p1);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = ctx.fillStyle = sym.theta;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const p = arcPoint(p0, p1, i / 16, h);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+      const a = arcPoint(p0, p1, 0.9, h);
+      arrowHead(p1.x, p1.y, p1.x - a.x, p1.y - a.y, 7);
+      ctx.restore();
+    }
+
+    // 궤적: 지나온 자리의 흐린 공과 휘어진 화살표 (최근 TRAIL_MAX 개, 오래될수록 흐리게)
+    function drawTrail() {
+      const pts = [...trail.slice(-TRAIL_MAX), theta];
+      // 공이 날아가는 중이면 마지막 구간(지금 날아가는 중)은 화살표를 그리지 않음
+      const last = flight ? pts.length - 2 : pts.length - 1;
+      for (let i = 0; i < last; i++) {
+        const age = (i + 1) / last;
+        drawArcArrow(screen(pts[i]), screen(pts[i + 1]), 0.15 + 0.35 * age);
+      }
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = screen(pts[i]);
+        drawBallAt(p.x, p.y, 6, 0.12 + 0.2 * ((i + 1) / pts.length));
+      }
+    }
+
+    // 강조 상태에 따라 선 굵기·투명도를 정한다. ids: 이 그래프 요소를 강조하는 기호 id 목록
+    function emphasis(ids) {
+      if (highlight === null) return { width: 2.5, alpha: 1 };
+      return ids.includes(highlight) ? { width: 4.5, alpha: 1 } : { width: 2.5, alpha: 0.25 };
+    }
+
+    // 접선: 파란 점선 + 기울기 값, 공 양쪽으로 화면 폭에 맞춘 길이
     function drawTangent(f) {
       const { slope } = tangentAt(f, theta);
       if (!Number.isFinite(slope)) return;
-      // 화면 좌표에서의 방향 (x 1픽셀당 y 픽셀 변화)
-      const pxPerX = canvas.width / (xMax - xMin), pxPerY = plotH() / (yMax - yMin);
+      const lenPx = Math.min(80, W * 0.14);
+      const pxPerX = (W - PAD_L - PAD_R) / (xMax - xMin), pxPerY = (plotBottom() - PAD_T) / (yMax - yMin);
       const dx = 1, dy = -slope * (pxPerY / pxPerX);
       const len = Math.hypot(dx, dy);
-      const ux = (dx / len) * TANGENT_PX, uy = (dy / len) * TANGENT_PX;
+      const ux = (dx / len) * lenPx, uy = (dy / len) * lenPx;
       const cx = toX(theta), cy = toY(f(theta));
       const { width, alpha } = emphasis(['grad']);
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = ctx.fillStyle = COLORS.grad;
+      ctx.strokeStyle = ctx.fillStyle = sym.grad;
       ctx.lineWidth = width;
-      ctx.setLineDash([6, 4]);
+      ctx.setLineDash([7, 5]);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(axisX() + 1, 0, W - axisX() - 1, plotBottom() + 6); // 축 밖으로 나가지 않게
+      ctx.clip();
       ctx.beginPath();
       ctx.moveTo(cx - ux, cy - uy);
       ctx.lineTo(cx + ux, cy + uy);
       ctx.stroke();
-      // 기울기 값: 접선 오른쪽 끝 옆 (캔버스 안쪽으로 제한)
-      ctx.font = highlight === 'grad' ? 'bold 13px sans-serif' : '12px sans-serif';
-      const lx = Math.min(Math.max(cx + ux + 8, 50), canvas.width - 50);
-      const ly = Math.min(Math.max(cy + uy + (uy < 0 ? -6 : 14), 14), plotH() - 4);
-      ctx.fillText(`기울기 = ${formatNumber(slope)}`, lx, ly);
+      ctx.restore();
+      // 기울기 값: 접선 왼쪽 끝 위쪽 (다음 위치 점과 겹치지 않게 공의 반대편 끝)
+      setFont(13, highlight === 'grad');
+      // 축 이름(J(θ))·최솟값 라벨이 있는 위쪽 띠와 세로축을 피해서 접선 한쪽 끝 옆에.
+      // 그 자리가 공과 겹치면 반대쪽 끝 아래로
+      const place = (ex, ey, dyText) => ({
+        x: Math.min(Math.max(ex, axisX() + 62), W - 55),
+        y: Math.min(Math.max(ey + dyText, PAD_T + 14), plotBottom() - 4),
+      });
+      let { x: lx, y: ly } = place(cx - ux, cy - uy, -10);
+      if (Math.abs(lx - cx) < 60 && Math.abs(ly - cy) < 22) ({ x: lx, y: ly } = place(cx + ux, cy + uy, 20));
+      fillLabel(`기울기 = ${formatNumber(slope)}`, lx, ly);
       ctx.restore();
     }
 
-    // 이동량 화살표: 가로축 위에서 θ → θ_new (다음 스텝 미리보기), 주황 + "η·J′ = 값".
+    // 이동량 화살표: 가로축 위에서 θ → θ_new (다음 스텝 미리보기), "η·J′ = 값".
     // 캔버스 밖이면 가장자리에서 자름, 3px 미만이면 값만 표시
     function drawMoveArrow({ move, next }) {
       const y = axisY();
       const x0 = toX(theta);
-      const x1 = Math.min(Math.max(toX(next), 0), canvas.width);
+      const x1 = Math.min(Math.max(toX(next), axisX()), W - 4);
       const { width, alpha } = emphasis(['move', 'eta']);
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = ctx.fillStyle = COLORS.move;
+      ctx.strokeStyle = ctx.fillStyle = sym.move;
+      setFont(13, highlight === 'move' || highlight === 'eta');
       const label = `η·J′ = ${formatNumber(move)}`;
-      const labelX = (x) => Math.min(Math.max(x, 45), canvas.width - 45);
-      ctx.font = highlight === 'move' || highlight === 'eta' ? 'bold 13px sans-serif' : '12px sans-serif';
       if (!Number.isFinite(x0) || !Number.isFinite(x1) || Math.abs(x1 - x0) < 3) {
-        ctx.fillText(label, labelX(x0), y + 20);
+        fillLabel(label, clampX(x0, 50), y + 20);
         ctx.restore();
         return;
       }
@@ -318,29 +557,22 @@
       ctx.moveTo(x0, y);
       ctx.lineTo(x1, y);
       ctx.stroke();
-      ctx.fillText(label, labelX((x0 + x1) / 2), y + 20);
+      fillLabel(label, clampX((x0 + x1) / 2, 50), y + 20);
       // 화살표 머리: 기울기의 반대 방향을 가리킴 ('−' 기호를 강조하면 커짐)
-      const dir = Math.sign(x1 - x0);
       const head = emphasis(['move', 'eta', 'minus']);
       ctx.globalAlpha = head.alpha;
-      const size = highlight === 'minus' ? 14 : 9;
-      ctx.beginPath();
-      ctx.moveTo(x1, y);
-      ctx.lineTo(x1 - dir * size, y - size * 0.6);
-      ctx.lineTo(x1 - dir * size, y + size * 0.6);
-      ctx.closePath();
-      ctx.fill();
+      arrowHead(x1, y, Math.sign(x1 - x0), 0, highlight === 'minus' ? 15 : 10);
       ctx.restore();
     }
 
-    // 다음 위치 θ_new 의 흐린 점 (항상 표시)
+    // 다음 위치 θ_new 의 흐린 점
     function drawNextPoint(f, { next }) {
       const y = f(next);
       if (!Number.isFinite(y)) return;
       const { alpha } = emphasis(['next']);
       ctx.save();
-      ctx.globalAlpha = alpha * (highlight === 'next' ? 1 : 0.5);
-      ctx.fillStyle = COLORS.next;
+      ctx.globalAlpha = alpha * (highlight === 'next' ? 1 : 0.55);
+      ctx.fillStyle = sym.next;
       ctx.beginPath();
       ctx.arc(toX(next), toY(y), highlight === 'next' ? 7 : 5, 0, 2 * Math.PI);
       ctx.fill();
@@ -353,65 +585,197 @@
       ctx.save();
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
-      ctx.font = 'bold 13px sans-serif';
+      setFont(13, true);
       if (highlight === 'theta') {
-        ctx.strokeStyle = ctx.fillStyle = COLORS.theta;
+        ctx.strokeStyle = ctx.fillStyle = sym.theta;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx, axisY());
         ctx.stroke();
-        ctx.fillText(`θ = ${formatNumber(theta)}`, Math.min(Math.max(cx, 40), canvas.width - 40), axisY() - 6);
+        fillLabel(`θ = ${formatNumber(theta)}`, clampX(cx, 40), axisY() - 8);
       }
       if (highlight === 'J') {
-        ctx.strokeStyle = ctx.fillStyle = COLORS.J;
+        ctx.strokeStyle = ctx.fillStyle = sym.J;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.lineTo(0, cy);
+        ctx.lineTo(axisX(), cy);
         ctx.stroke();
         ctx.textAlign = 'left';
-        ctx.fillText(`J = ${formatNumber(f(theta))}`, 6, cy - 6);
+        fillLabel(`J = ${formatNumber(f(theta))}`, axisX() + 6, cy - 8);
       }
       ctx.restore();
     }
 
-    // 현재 점 (발산하면 캔버스 밖으로 나가 보이지 않을 수 있음)
-    function drawBall(f) {
+    // 지금 공: 날아가는 중이면 포물선 위, 아니면 곡선 위
+    function drawCurrentBall(now) {
       const { alpha } = emphasis(['theta', 'J']);
-      ctx.save();
-      ctx.globalAlpha = Math.max(alpha, 0.5); // 공은 흐려져도 위치가 보이게
-      ctx.beginPath();
-      ctx.arc(toX(theta), toY(f(theta)), highlight === 'theta' || highlight === 'J' ? 8 : 6, 0, 2 * Math.PI);
-      ctx.fillStyle = COLORS.theta;
-      ctx.fill();
-      ctx.restore();
+      const r = highlight === 'theta' || highlight === 'J' ? 11 : 9;
+      let p = screen(theta);
+      if (flight) {
+        const p0 = screen(flight.from), p1 = screen(flight.to);
+        const t = Math.min((now - flight.start) / flight.dur, 1);
+        p = arcPoint(p0, p1, t, arcHeight(p0, p1));
+      }
+      drawBallAt(p.x, p.y, r, Math.max(alpha, 0.5)); // 공은 흐려져도 위치가 보이게
     }
 
-    function doStep() {
+    // ---------- 상태·공식 칸 ----------
+
+    function renderPanel(detail) {
+      const f = curve.f;
+      const state = k > 0 ? judgeState(reason, theta, features, curve.range) : null;
+      const status = STATE_TEXT[state] ?? STATUS_TEXT[reason ?? (playing ? 'playing' : k > 0 ? 'paused' : 'idle')];
+      document.getElementById('status').textContent = status;
+      document.getElementById('k').textContent = k;
+      document.getElementById('theta').textContent = theta.toFixed(4);
+      document.getElementById('j').textContent = f(theta).toFixed(4);
+      document.getElementById('dj').textContent = derivative(f, theta).toFixed(4);
+      document.getElementById('etaValue').textContent = eta;
+      document.getElementById('speedValue').textContent = formatSpeed(speed);
+
+      playBtn.textContent = playing ? '일시정지' : '재생';
+      playBtn.disabled = stepBtn.disabled = runBtn.disabled = reason !== null;
+
+      const s = { theta, J: f(theta), eta, detail };
+      document.getElementById('substituted').textContent = substituted(s);
+      for (const item of SYMBOLS) {
+        document.getElementById(`value-${item.id}`).textContent = item.value(s);
+      }
+    }
+
+    // 기호 설명 카드 만들기 (처음 한 번). 카드는 버튼이라 키보드로 이동·선택할 수 있다
+    function buildCards() {
+      const box = document.getElementById('cards');
+      for (const item of SYMBOLS) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.dataset.sym = item.id;
+        card.setAttribute('aria-pressed', 'false');
+        card.innerHTML = `<div><span class="sym"></span> <b class="name"></b></div>
+          <div class="meaning"></div><div>현재 값: <b id="value-${item.id}"></b></div>`;
+        card.querySelector('.sym').textContent = item.symbol;
+        card.querySelector('.sym').style.color = `var(--c-${item.id})`;
+        card.querySelector('.name').textContent = item.name;
+        card.querySelector('.meaning').textContent = item.meaning;
+        box.append(card);
+      }
+      for (const el of document.querySelectorAll('#formula span[data-sym]')) {
+        el.style.color = `var(--c-${el.dataset.sym})`;
+      }
+    }
+
+    // ---------- 재생 ----------
+
+    // 한 스텝: 계산은 바로 하고, 공은 포물선을 따라 날아가게 (동작 줄이기면 바로 옮김)
+    function stepOnce(flightDur) {
+      const from = theta;
       theta = step(curve.f, theta, eta);
       k++;
-      reason = stopReason(curve.f, theta, k);
-      if (reason) pause();
+      trail.push(from);
+      if (trail.length > TRAIL_MAX * 2) trail = trail.slice(-TRAIL_MAX);
+      reason = stopReason(curve.f, theta, k, { maxIter });
+      const dur = reducedMotion ? 0 : flightDur;
+      flight = dur > 0 && Number.isFinite(curve.f(theta)) ? { from, to: theta, start: performance.now(), dur } : null;
+      if (reason) {
+        stoppedWhilePlaying = playing && reason === 'maxIter';
+        playing = false;
+      }
+    }
+
+    // requestAnimationFrame 반복: 재생 속도에 맞춰 스텝을 진행하고, 날아가는 공을 그린다
+    function loop(now) {
+      rafId = null;
+      const dt = Math.min(now - lastT, 250); // 탭이 가려졌다 돌아와도 한꺼번에 몰아서 진행하지 않게
+      lastT = now;
+      if (flight && now - flight.start >= flight.dur) flight = null;
+      if (playing && !flight) {
+        acc += dt;
+        const interval = 1000 / speed;
+        while (playing && !flight && acc >= interval) {
+          acc -= interval;
+          stepOnce(flightMs(speed));
+        }
+      }
       draw();
+      if (playing || flight) kick();
+    }
+    function kick() {
+      if (rafId === null) rafId = requestAnimationFrame(loop);
     }
 
     function play() {
-      timer = setInterval(doStep, INTERVAL_MS);
+      if (reason) return;
+      playing = true;
+      stoppedWhilePlaying = false;
+      acc = 1000 / speed; // 누르자마자 첫 스텝
+      lastT = performance.now();
+      kick();
       draw();
     }
 
     function pause() {
-      clearInterval(timer);
-      timer = null;
+      playing = false;
+      draw();
+    }
+
+    function manualStep() {
+      if (reason) return;
+      flight = null;
+      stoppedWhilePlaying = false;
+      stepOnce(MANUAL_FLIGHT);
+      lastT = performance.now();
+      kick();
+      draw();
+    }
+
+    // 끝까지 바로 실행: 애니메이션 없이 멈출 때까지 계산하고 결과만 표시
+    function runToEnd() {
+      if (reason) return;
+      playing = false;
+      flight = null;
+      stoppedWhilePlaying = false;
+      const r = runUntilStop(curve.f, theta, eta, k, maxIter);
+      trail = trail.concat(r.path.slice(0, -1)).slice(-TRAIL_MAX);
+      theta = r.theta;
+      k = r.k;
+      reason = r.reason;
       draw();
     }
 
     // 시작점(곡선 기본값 또는 마지막으로 클릭한 위치)으로 되돌림
     function reset() {
+      playing = false;
+      flight = null;
+      stoppedWhilePlaying = false;
       theta = start;
       k = 0;
       reason = null;
-      pause();
+      trail = [];
+      draw();
     }
+
+    // 최대 반복 입력: 최대 반복으로 멈춘 뒤 숫자를 늘리면 이어서 진행
+    function onMaxIterInput() {
+      const errorEl = document.getElementById('iterError');
+      try {
+        maxIter = parseMaxIter(maxIterInput.value);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        return;
+      }
+      errorEl.textContent = '';
+      if (reason === 'maxIter' && k < maxIter) {
+        reason = null;
+        if (stoppedWhilePlaying) play();
+      } else if (reason === null && k >= maxIter) {
+        reason = 'maxIter';
+        stoppedWhilePlaying = playing;
+        playing = false;
+      }
+      draw();
+    }
+
+    // ---------- 이벤트 ----------
 
     // 예시 곡선 버튼: 입력칸에 식과 범위를 채우고 해석기를 거쳐 적용
     function loadExample(c) {
@@ -424,44 +788,81 @@
       const btn = document.createElement('button');
       btn.textContent = c.name;
       btn.addEventListener('click', () => loadExample(c));
-      document.getElementById('curves').append(btn, ' ');
+      document.getElementById('curves').append(btn);
     }
     document.getElementById('apply').addEventListener('click', () => applyInput());
     for (const input of [exprInput, tminInput, tmaxInput]) {
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyInput(); });
     }
-    playBtn.addEventListener('click', () => (timer ? pause() : play()));
-    stepBtn.addEventListener('click', doStep);
+    playBtn.addEventListener('click', () => (playing ? pause() : play()));
+    stepBtn.addEventListener('click', manualStep);
+    runBtn.addEventListener('click', runToEnd);
     document.getElementById('reset').addEventListener('click', reset);
     // 실행 중에 바꾸면 다음 스텝부터 새 η 적용
     etaInput.addEventListener('input', () => {
       eta = posToEta(Number(etaInput.value));
       draw();
     });
-    // 그래프 아무 곳이나 클릭: 그 x 위치의 θ에서 다시 시작
+    // 재생 속도: 재생 중에 바꾸면 바로 반영
+    speedInput.addEventListener('input', () => {
+      speed = posToSpeed(Number(speedInput.value));
+      draw();
+    });
+    maxIterInput.addEventListener('input', onMaxIterInput);
+    // 그래프 아무 곳이나 누르기: 그 x 위치의 θ에서 다시 시작
     canvas.addEventListener('click', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const px = (e.clientX - rect.left) * (canvas.width / rect.width);
-      start = toTheta(px);
+      start = Math.min(Math.max(toTheta(e.clientX - rect.left), xMin), xMax);
       reset();
     });
 
-    // 공식 칸의 기호(공식 안의 기호 또는 표의 행)에 마우스를 올리면 그래프의 해당 요소를 강조
-    function setHighlight(id) {
-      if (highlight === id) return;
-      highlight = id;
+    // 강조할 기호: 마우스를 올린 것 → 키보드 포커스 → 눌러서 고정한 것 순으로 우선
+    let hoverId = null, focusId = null, pinnedId = null;
+    function updateHighlight() {
+      const id = hoverId ?? focusId ?? pinnedId;
       for (const el of document.querySelectorAll('#formula [data-sym]')) {
-        el.style.background = el.dataset.sym === id ? '#fff3bf' : '';
+        el.classList.toggle('on', el.dataset.sym === id);
+      }
+      for (const card of document.querySelectorAll('#cards button')) {
+        card.setAttribute('aria-pressed', String(card.dataset.sym === pinnedId));
       }
       // η는 화살표 길이를 정하므로 슬라이더도 강조
-      etaInput.style.outline = id === 'eta' ? `3px solid ${COLORS.eta}` : '';
-      draw();
+      etaInput.style.outline = id === 'eta' ? `3px solid var(--c-eta)` : '';
+      if (highlight !== id) {
+        highlight = id;
+        draw();
+      }
     }
     const formulaEl = document.getElementById('formula');
-    formulaEl.addEventListener('mouseover', (e) => setHighlight(e.target.closest('[data-sym]')?.dataset.sym ?? null));
-    formulaEl.addEventListener('mouseleave', () => setHighlight(null));
+    const symOf = (e) => e.target.closest('[data-sym]')?.dataset.sym ?? null;
+    formulaEl.addEventListener('mouseover', (e) => { hoverId = symOf(e); updateHighlight(); });
+    formulaEl.addEventListener('mouseleave', () => { hoverId = null; updateHighlight(); });
+    // 누르기(카드는 Enter/Space 포함): 고정 ↔ 풀기
+    formulaEl.addEventListener('click', (e) => {
+      const id = symOf(e);
+      if (!id) return;
+      pinnedId = pinnedId === id ? null : id;
+      updateHighlight();
+    });
+    // 키보드로 카드에 포커스가 오면 강조 (마우스 클릭으로 생긴 포커스는 제외)
+    formulaEl.addEventListener('focusin', (e) => {
+      focusId = e.target.matches(':focus-visible') ? symOf(e) : null;
+      updateHighlight();
+    });
+    formulaEl.addEventListener('focusout', () => { focusId = null; updateHighlight(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && pinnedId) { pinnedId = null; updateHighlight(); }
+    });
 
-    buildFormulaTable();
+    // 운영체제 설정이 바뀌면 바로 반영
+    darkQuery.addEventListener('change', () => { applyPalette(); draw(); });
+    motionQuery.addEventListener('change', () => { reducedMotion = motionQuery.matches; if (reducedMotion) flight = null; draw(); });
+    new ResizeObserver(() => { resizeCanvas(); draw(); }).observe(canvas);
+
+    applyPalette();
+    resizeCanvas();
+    buildCards();
+    speedInput.value = speedToPos(speed);
     loadExample(CURVES[0]);
   </script>
 </body>

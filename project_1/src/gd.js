@@ -9,7 +9,21 @@ export function derivative(f, x, h = 1e-5) {
 
 // 한 스텝: θ ← θ − η·J′(θ)
 export function step(f, theta, eta) {
-  return theta - eta * derivative(f, theta);
+  return stepDetail(f, theta, eta).next;
+}
+
+// 한 스텝의 세부 값: grad = J′(θ), move = η·grad (이동량), next = θ − move
+export function stepDetail(f, theta, eta) {
+  const grad = derivative(f, theta);
+  const move = eta * grad;
+  return { grad, move, next: theta - move };
+}
+
+// θ에서의 접선: 기울기 J′(θ), y(x) = J(θ) + J′(θ)·(x − θ)
+export function tangentAt(f, theta) {
+  const slope = derivative(f, theta);
+  const y0 = f(theta);
+  return { slope, y: (x) => y0 + slope * (x - theta) };
 }
 
 // 멈춤 판정 기준

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  arcPoint, arcHeight, posToSpeed, speedToPos, formatSpeed, flightMs, parseMaxIter,
+  arcPoint, arcHeight, flightMs, parseMaxIter,
 } from '../src/playback.js';
 import { runUntilStop } from '../src/gd.js';
 import { CURVES } from '../src/curves.js';
@@ -24,16 +24,6 @@ test('arcHeight: 거리의 35%, 최소 12px, 최대 90px', () => {
   assert.equal(arcHeight({ x: 0, y: 0 }, { x: 100, y: 0 }), 35);
   assert.equal(arcHeight({ x: 0, y: 0 }, { x: 5, y: 0 }), 12);
   assert.equal(arcHeight({ x: 0, y: 0 }, { x: 1000, y: 0 }), 90);
-});
-
-test('재생 속도: 4초에 1스텝 ~ 초당 100스텝 이상, 표시 문구', () => {
-  assert.ok(near(posToSpeed(0), 0.25));
-  assert.ok(posToSpeed(1000) >= 100);
-  for (let p = 0; p < 1000; p += 100) assert.ok(posToSpeed(p) < posToSpeed(p + 100));
-  assert.equal(speedToPos(posToSpeed(403)), 403);
-  assert.equal(formatSpeed(0.25), '4초에 1스텝');
-  assert.equal(formatSpeed(3.2), '초당 3.2스텝');
-  assert.equal(formatSpeed(120), '초당 120스텝');
 });
 
 test('날아가는 시간: 느리면 최대 650ms, 빠르면 0(바로 옮김)', () => {

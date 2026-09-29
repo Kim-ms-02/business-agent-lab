@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>경사하강법 v0.6</title>
+  <title>경사하강법 시각화</title>
   <style>
     :root {
       --font: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
@@ -110,7 +110,7 @@
 </head>
 <body>
 <main class="wrap">
-  <h1>경사하강법: 기울기를 보고 비탈을 내려가는 공</h1>
+  <h1>경사하강법 시각화: 기울기를 보고 하강하는 공</h1>
 
   <section class="panel">
     <div class="row">
@@ -144,10 +144,6 @@
       <input id="eta" type="range" min="0" max="1000" step="1">
       <output id="etaValue" for="eta"></output>
 
-      <label for="speed">재생 속도</label>
-      <input id="speed" type="range" min="0" max="1000" step="1">
-      <output id="speedValue" for="speed"></output>
-
       <label for="maxIter">최대 반복</label>
       <span class="row"><input id="maxIter" type="number" min="1" max="100000" step="1" value="1000" inputmode="numeric"></span>
       <span></span>
@@ -167,7 +163,7 @@
 
   <section id="formula" class="panel">
     <b>공식 읽기</b>
-    <div class="hint">기호에 마우스를 올리거나 누르면 그래프에서 강조돼요. 카드는 Tab으로 이동, Enter로 고정, Esc로 풀기.</div>
+    <div class="hint">카드를 클릭하여 그래프에서 값을 확인하세요. 카드는 Tab으로 확인, Esc로 풀기.</div>
     <div class="big-formula">
       <span data-sym="next">θ<sub>new</sub></span> = <span data-sym="theta">θ</span> <span data-sym="minus">−</span>
       <span data-sym="move"><span data-sym="eta">η</span> · <span data-sym="grad">J′(θ)</span></span>
@@ -184,11 +180,11 @@
     import { COLORS, COLORS_DARK, SYMBOLS, substituted, formatNumber } from './src/formula.js';
     import { CURVES } from './src/curves.js';
     import { parseFunction, checkDefinedOnRange, ParseError } from './src/parser.js';
-    import { arcPoint, arcHeight, posToSpeed, speedToPos, formatSpeed, flightMs, parseMaxIter } from './src/playback.js';
+    import { arcPoint, arcHeight, flightMs, parseMaxIter } from './src/playback.js';
 
     const TRAIL_MAX = 60;      // 궤적에 남길 최근 자리 수
     const MANUAL_FLIGHT = 450; // "한 스텝"을 눌렀을 때 공이 날아가는 시간(ms)
-    const DEFAULT_SPEED = 3;   // 초당 스텝
+    const SPEED = 4;           // 재생 속도: 초당 4스텝 고정
 
     // 학습률 슬라이더: 0~1000 위치를 로그 눈금 0.001~2 로 변환, 표시값(유효숫자 3자리)으로 반올림
     const LOG_MIN = Math.log10(0.001), LOG_MAX = Math.log10(2);
@@ -204,8 +200,8 @@
       maxIter: '최대 반복 도달',
     };
     const STATE_TEXT = {
-      global: '전역 최솟값 도달',
-      local: '지역 최솟값에 갇힘',
+      global: 'Global Minimum 도달',
+      local: 'Local Minimum 갇힘',
       plateauMoving: '평지에서 느리게 이동 중',
       plateauStopped: '평지에서 멈춤',
     };
@@ -216,7 +212,6 @@
     const stepBtn = document.getElementById('step');
     const runBtn = document.getElementById('runToEnd');
     const etaInput = document.getElementById('eta');
-    const speedInput = document.getElementById('speed');
     const maxIterInput = document.getElementById('maxIter');
     const exprInput = document.getElementById('expr');
     const tminInput = document.getElementById('tmin');
@@ -227,7 +222,6 @@
     let xMin, xMax, yMin, yMax;
     let start;            // 시작 θ (곡선의 theta0 또는 클릭한 위치)
     let theta, k, eta;
-    let speed = DEFAULT_SPEED;
     let maxIter = 1000;
     let reason = null;    // 멈춘 이유 (converged | diverged | maxIter)
     let highlight = null; // 공식 읽기 칸에서 강조 중인 기호 id
@@ -403,7 +397,7 @@
         ctx.lineTo(toX(m.theta), PAD_T - 4);
         ctx.stroke();
         ctx.setLineDash([]);
-        fillLabel(m.global ? '전역 최솟값' : '지역 최솟값', clampX(toX(m.theta), 40), PAD_T - 10);
+        fillLabel(m.global ? 'Global Minimum' : 'Local Minimum', clampX(toX(m.theta), 40), PAD_T - 10);
       }
     }
 
@@ -653,7 +647,6 @@
       document.getElementById('j').textContent = f(theta).toFixed(4);
       document.getElementById('dj').textContent = derivative(f, theta).toFixed(4);
       document.getElementById('etaValue').textContent = eta;
-      document.getElementById('speedValue').textContent = formatSpeed(speed);
 
       playBtn.textContent = playing ? '일시정지' : '재생';
       playBtn.disabled = stepBtn.disabled = runBtn.disabled = reason !== null;
@@ -712,10 +705,10 @@
       if (flight && now - flight.start >= flight.dur) flight = null;
       if (playing && !flight) {
         acc += dt;
-        const interval = 1000 / speed;
+        const interval = 1000 / SPEED;
         while (playing && !flight && acc >= interval) {
           acc -= interval;
-          stepOnce(flightMs(speed));
+          stepOnce(flightMs(SPEED));
         }
       }
       draw();
@@ -729,7 +722,7 @@
       if (reason) return;
       playing = true;
       stoppedWhilePlaying = false;
-      acc = 1000 / speed; // 누르자마자 첫 스텝
+      acc = 1000 / SPEED; // 누르자마자 첫 스텝
       lastT = performance.now();
       kick();
       draw();
@@ -825,11 +818,6 @@
       eta = posToEta(Number(etaInput.value));
       draw();
     });
-    // 재생 속도: 재생 중에 바꾸면 바로 반영
-    speedInput.addEventListener('input', () => {
-      speed = posToSpeed(Number(speedInput.value));
-      draw();
-    });
     maxIterInput.addEventListener('input', onMaxIterInput);
     // 그래프 아무 곳이나 누르기: 그 x 위치의 θ에서 다시 시작
     canvas.addEventListener('click', (e) => {
@@ -885,7 +873,6 @@
     applyPalette();
     resizeCanvas();
     buildCards();
-    speedInput.value = speedToPos(speed);
     loadExample(CURVES[0]);
   </script>
 </body>
